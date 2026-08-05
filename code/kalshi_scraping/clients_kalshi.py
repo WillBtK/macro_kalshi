@@ -129,16 +129,54 @@ class KalshiHttpClient(KalshiBaseClient):
         self.raise_if_bad_response(response)
         return response.json()
 
+    # Number of attempts and base backoff for transient network/server errors.
+    MAX_RETRIES = 5
+    BACKOFF_BASE_SECONDS = 2
+    REQUEST_TIMEOUT_SECONDS = 30
+
     def get(self, path: str, params: Dict[str, Any] = {}) -> Any:
-        """Performs an authenticated GET request to the Kalshi API."""
-        self.rate_limit()
-        response = requests.get(
-            self.host + path,
-            headers=self.request_headers("GET", path),
-            params=params
-        )
-        self.raise_if_bad_response(response)
-        return response.json()
+        """Performs an authenticated GET request to the Kalshi API.
+
+        Retries transient failures (dropped connections, timeouts, HTTP 429 and
+        5xx) with exponential backoff. A long full scrape will occasionally see
+        the server close a connection; without this a single blip aborts the
+        entire run and discards everything scraped so far. Genuine client errors
+        (4xx other than 429) are not retried.
+        """
+        last_exc = None
+        for attempt in range(self.MAX_RETRIES):
+            self.rate_limit()
+            try:
+                response = requests.get(
+                    self.host + path,
+                    headers=self.request_headers("GET", path),
+                    params=params,
+                    timeout=self.REQUEST_TIMEOUT_SECONDS,
+                )
+                # Retry rate-limit and server errors; raise on other 4xx.
+                if response.status_code == 429 or response.status_code >= 500:
+                    raise HTTPError(
+                        f"{response.status_code} from {path}", response=response
+                    )
+                self.raise_if_bad_response(response)
+                return response.json()
+            except (
+                requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout,
+                requests.exceptions.ChunkedEncodingError,
+                HTTPError,
+            ) as exc:
+                last_exc = exc
+                if attempt == self.MAX_RETRIES - 1:
+                    break
+                sleep_s = self.BACKOFF_BASE_SECONDS * (2 ** attempt)
+                print(
+                    f"  Transient error on {path} "
+                    f"(attempt {attempt + 1}/{self.MAX_RETRIES}): {exc}. "
+                    f"Retrying in {sleep_s}s..."
+                )
+                time.sleep(sleep_s)
+        raise last_exc
 
     def delete(self, path: str, params: Dict[str, Any] = {}) -> Any:
         """Performs an authenticated DELETE request to the Kalshi API."""

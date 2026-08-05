@@ -103,6 +103,11 @@ def connect():
     # rather than being percent-decoded by libpq's URL parser.
     p = urlsplit(url)
     if p.scheme in ("postgres", "postgresql") and p.hostname:
+        # Diagnostic (no secret leaked): confirms which host/user the string
+        # resolves to. Session-pooler user must look like 'postgres.<ref>'.
+        print(f"DB connect -> host={p.hostname} port={p.port or 5432} "
+              f"user={p.username!r} dbname={(p.path or '/postgres').lstrip('/') or 'postgres'} "
+              f"password_len={len(p.password or '')}")
         conn = psycopg2.connect(
             host=p.hostname,
             port=p.port or 5432,

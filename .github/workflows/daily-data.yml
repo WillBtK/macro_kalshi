@@ -42,6 +42,17 @@ jobs:
           KALSHI_PRIVATE_KEY: ${{ secrets.KALSHI_PRIVATE_KEY }}
         run: python code/kalshi_scraping/scrape_kalshi_trades.py
 
+      # Preserve the raw scraped trades so the (slow) scrape doesn't have to be
+      # repeated when only the R conversion needs debugging or re-running.
+      - name: Upload raw trade data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trade-level-data
+          path: data/trade_level_data/
+          retention-days: 7
+          if-no-files-found: ignore
+
       # -----------------------
       # R setup + convert
       # -----------------------

@@ -66,10 +66,14 @@ read_data <- function(input_file) {
     mutate(created_time = as.POSIXct(created_time, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC"),
            date = as.Date(created_time))
 
-  # The raw Kalshi trades feed provides trade size in `count`. Downstream
-  # aggregation (convert_to_daily) expects a numeric `count_fp`, so derive it here.
-  df <- df %>%
-    mutate(count_fp = as.numeric(count))
+  # Downstream aggregation (convert_to_daily) expects a numeric `count_fp`.
+  # The live Kalshi feed already provides `count_fp`; older/other exports use
+  # `count`. Use the native column when present, otherwise derive it.
+  if (!"count_fp" %in% names(df)) {
+    df <- df %>% mutate(count_fp = as.numeric(count))
+  } else {
+    df <- df %>% mutate(count_fp = as.numeric(count_fp))
+  }
 
   # As of March 2026 Kalshi now uses yes_price_dollars and no_price_dollars
   # instead of yes_price and no_price. Convert

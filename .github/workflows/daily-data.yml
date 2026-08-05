@@ -1,13 +1,9 @@
-name: Weekly Data Update
+name: Daily Data Update
 
 on:
   schedule:
-    - cron: "5 17 * * 5"   # Fridays 17:05 UTC
+    - cron: "5 11 * * *"   # daily, 11:05 UTC
   workflow_dispatch:        # allow manual triggering too
-
-# Needed so the job can commit the refreshed data back to the repo.
-permissions:
-  contents: write
 
 jobs:
   update-data:
@@ -18,7 +14,7 @@ jobs:
         uses: actions/checkout@v4
 
       # -----------------------
-      # Python setup + scrape
+      # Python setup
       # -----------------------
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -26,25 +22,28 @@ jobs:
           python-version: "3.11"
 
       - name: Install Python dependencies
-        run: pip install pandas python-dotenv cryptography requests websockets
+        run: pip install pandas python-dotenv cryptography requests websockets psycopg2-binary
 
       - name: Create data directories
         run: |
           mkdir -p data/trade_level_data
           mkdir -p data/daily_distribution_data/wide
           mkdir -p data/daily_moments_data
-          mkdir -p data/daily_bid_ask_distribution_data
-          mkdir -p data/daily_bid_ask_moments_data
 
-      - name: Run Python scraping script
+      # -----------------------
+      # Incremental scrape -> Postgres, then export CSVs for the R conversion.
+      # First run (empty DB) seeds full history; later runs pull only new trades.
+      # -----------------------
+      - name: Incremental scrape into Postgres
         env:
           KALSHI_KEYID: ${{ secrets.KALSHI_KEYID }}
           KALSHI_PRIVATE_KEY: ${{ secrets.KALSHI_PRIVATE_KEY }}
-        run: python code/kalshi_scraping/scrape_kalshi_trades.py
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: python code/kalshi_scraping/scrape_incremental.py
 
-      # Preserve the raw scraped trades so the (slow) scrape doesn't have to be
-      # repeated when only the R conversion needs debugging or re-running.
-      - name: Upload raw trade data
+      # Debug aid: keep the exported trades so an R failure can be reproduced
+      # without a re-scrape.
+      - name: Upload trade data
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -70,21 +69,10 @@ jobs:
         run: Rscript code/convert_trades_to_pdfs/data_convert_runner.R
 
       # -----------------------
-      # Commit derived data back to the repo
-      # (raw trade/orderbook data stays git-ignored; only the derived
-      #  CSVs the front-end reads are committed — see SELF_HOSTING.md)
+      # Load derived moments + distributions into Postgres (the data store the
+      # front-end reads). Replaces each series in full.
       # -----------------------
-      - name: Commit updated data
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          date -u +"%Y-%m-%dT%H:%M:%SZ" > data/last_updated.txt
-          git add -f data/daily_moments_data data/daily_distribution_data \
-                     data/daily_bid_ask_moments_data data/daily_bid_ask_distribution_data \
-                     data/last_updated.txt
-          if git diff --cached --quiet; then
-            echo "No data changes to commit."
-          else
-            git commit -m "Update Kalshi derived data ($(date -u +%Y-%m-%d))"
-            git push
-          fi
+      - name: Load derived data into Postgres
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: python code/kalshi_scraping/load_derived.py

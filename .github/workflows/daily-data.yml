@@ -39,6 +39,7 @@ jobs:
           KALSHI_KEYID: ${{ secrets.KALSHI_KEYID }}
           KALSHI_PRIVATE_KEY: ${{ secrets.KALSHI_PRIVATE_KEY }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: python code/kalshi_scraping/scrape_incremental.py
 
       # Debug aid: keep the exported trades so an R failure can be reproduced
@@ -75,4 +76,5 @@ jobs:
       - name: Load derived data into Postgres
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: python code/kalshi_scraping/load_derived.py

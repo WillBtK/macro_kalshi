@@ -94,40 +94,51 @@ END $$;
 """
 
 
+# Non-secret connection defaults for this Supabase project's Session pooler.
+# (The host and username are not secrets — they appear in the project URL.)
+# Only the password is secret (SUPABASE_DB_PASSWORD). Any of these can be
+# overridden with an env var if the project is ever recreated.
+DEFAULT_DB_HOST = "aws-0-ap-south-1.pooler.supabase.com"
+DEFAULT_DB_USER = "postgres.nidqyfcutlzylxhnkkrl"
+DEFAULT_DB_NAME = "postgres"
+DEFAULT_DB_PORT = 5432
+
+
 def connect():
+    # Password is the ONLY required secret. Everything else has a working
+    # default, so there is no connection URL to keep valid.
+    host = os.getenv("SUPABASE_DB_HOST")
+    user = os.getenv("SUPABASE_DB_USER")
+    dbname = os.getenv("SUPABASE_DB_NAME")
+    port = os.getenv("SUPABASE_DB_PORT")
+    pw = os.getenv("SUPABASE_DB_PASSWORD")
+
+    # If a full SUPABASE_DB_URL is provided and parseable, fill any gaps from it.
     url = os.getenv("SUPABASE_DB_URL")
-    if not url:
-        raise RuntimeError("SUPABASE_DB_URL is not set (add it as a repo secret / env var).")
-    # Parse the URL ourselves and pass fields as keyword args so that special
-    # characters in the password (%, spaces, @, ...) are treated literally
-    # rather than being percent-decoded by libpq's URL parser.
-    p = urlsplit(url)
-    if p.scheme in ("postgres", "postgresql") and p.hostname:
-        # A dedicated SUPABASE_DB_PASSWORD secret (raw password, no URL syntax)
-        # takes precedence over the password embedded in the URL — this avoids
-        # URL-transcription mistakes. Host/user/dbname still come from the URL.
-        pw_secret = os.getenv("SUPABASE_DB_PASSWORD")
-        raw = pw_secret if pw_secret else p.password
-        # Strip stray whitespace/newlines that often sneak into pasted secrets.
-        pw = raw.strip() if raw else raw
-        # Diagnostic (no secret leaked): confirms host/user, the password source,
-        # and whether whitespace was trimmed (raw vs stripped length).
-        print(f"DB connect -> host={p.hostname} port={p.port or 5432} "
-              f"user={p.username!r} dbname={(p.path or '/postgres').lstrip('/') or 'postgres'} "
-              f"password_len={len(raw or '')} stripped_len={len(pw or '')} "
-              f"pw_source={'SUPABASE_DB_PASSWORD' if pw_secret else 'url'}")
-        conn = psycopg2.connect(
-            host=p.hostname,
-            port=p.port or 5432,
-            user=p.username,
-            password=pw,
-            dbname=(p.path or "/postgres").lstrip("/") or "postgres",
-            sslmode="require",
-            connect_timeout=30,
-        )
-    else:
-        # Not a URL (e.g. a libpq keyword/value DSN) — pass through unchanged.
-        conn = psycopg2.connect(url, connect_timeout=30)
+    if url:
+        p = urlsplit(url)
+        if p.scheme in ("postgres", "postgresql") and p.hostname:
+            host = host or p.hostname
+            user = user or p.username
+            dbname = dbname or ((p.path or "/postgres").lstrip("/") or "postgres")
+            port = port or (p.port and str(p.port))
+            pw = pw or p.password
+
+    host = host or DEFAULT_DB_HOST
+    user = user or DEFAULT_DB_USER
+    dbname = dbname or DEFAULT_DB_NAME
+    port = int(port) if port else DEFAULT_DB_PORT
+    pw = pw.strip() if pw else pw
+    if not pw:
+        raise RuntimeError("Set SUPABASE_DB_PASSWORD (the database password).")
+
+    # Diagnostic (no secret leaked).
+    print(f"DB connect -> host={host} port={port} user={user!r} "
+          f"dbname={dbname} password_len={len(pw)}")
+    conn = psycopg2.connect(
+        host=host, port=port, user=user, password=pw, dbname=dbname,
+        sslmode="require", connect_timeout=30,
+    )
     conn.autocommit = False
     return conn
 

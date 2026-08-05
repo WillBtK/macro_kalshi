@@ -51,7 +51,7 @@ jobs:
       - name: Install R dependencies
         run: |
           install.packages(c("tidyverse", "lubridate", "matrixStats", "collapse", "DescTools"),
-                          repos = c("https://packagemanager.posit.co/cran/__linux__/jammy/latest",
+                          repos = c("https://packagemanager.posit.co/cran/__linux__/noble/latest",
                                    "https://cloud.r-project.org"))
         shell: Rscript {0}
 

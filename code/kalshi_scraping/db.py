@@ -17,6 +17,7 @@ that guarantees they mirror the latest computation with no stale rows.
 
 import os
 import csv
+from urllib.parse import urlsplit
 import psycopg2
 from psycopg2.extras import execute_values
 
@@ -97,7 +98,23 @@ def connect():
     url = os.getenv("SUPABASE_DB_URL")
     if not url:
         raise RuntimeError("SUPABASE_DB_URL is not set (add it as a repo secret / env var).")
-    conn = psycopg2.connect(url, sslmode="require", connect_timeout=30)
+    # Parse the URL ourselves and pass fields as keyword args so that special
+    # characters in the password (%, spaces, @, ...) are treated literally
+    # rather than being percent-decoded by libpq's URL parser.
+    p = urlsplit(url)
+    if p.scheme in ("postgres", "postgresql") and p.hostname:
+        conn = psycopg2.connect(
+            host=p.hostname,
+            port=p.port or 5432,
+            user=p.username,
+            password=p.password,
+            dbname=(p.path or "/postgres").lstrip("/") or "postgres",
+            sslmode="require",
+            connect_timeout=30,
+        )
+    else:
+        # Not a URL (e.g. a libpq keyword/value DSN) — pass through unchanged.
+        conn = psycopg2.connect(url, connect_timeout=30)
     conn.autocommit = False
     return conn
 

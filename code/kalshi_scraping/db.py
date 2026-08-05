@@ -107,12 +107,15 @@ def connect():
         # takes precedence over the password embedded in the URL — this avoids
         # URL-transcription mistakes. Host/user/dbname still come from the URL.
         pw_secret = os.getenv("SUPABASE_DB_PASSWORD")
-        pw = pw_secret if pw_secret else p.password
-        # Diagnostic (no secret leaked): confirms host/user and where the
-        # password came from. Session-pooler user must look like 'postgres.<ref>'.
+        raw = pw_secret if pw_secret else p.password
+        # Strip stray whitespace/newlines that often sneak into pasted secrets.
+        pw = raw.strip() if raw else raw
+        # Diagnostic (no secret leaked): confirms host/user, the password source,
+        # and whether whitespace was trimmed (raw vs stripped length).
         print(f"DB connect -> host={p.hostname} port={p.port or 5432} "
               f"user={p.username!r} dbname={(p.path or '/postgres').lstrip('/') or 'postgres'} "
-              f"password_len={len(pw or '')} pw_source={'SUPABASE_DB_PASSWORD' if pw_secret else 'url'}")
+              f"password_len={len(raw or '')} stripped_len={len(pw or '')} "
+              f"pw_source={'SUPABASE_DB_PASSWORD' if pw_secret else 'url'}")
         conn = psycopg2.connect(
             host=p.hostname,
             port=p.port or 5432,

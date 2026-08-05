@@ -1,9 +1,18 @@
 env.env
 key.txt
+*.pem
 code/polymarket_fed_trades.csv
-code/polymarket_fed_trades.csv.gzdata/
+code/polymarket_fed_trades.csv.gz
 output/
-data/
+
+# Data: raw/intermediate scrape output is NOT committed (large, and historical
+# pulls are limited post-March-2026). Derived CSVs that the front-end reads ARE
+# committed (see SELF_HOSTING.md).
+data/*
+!data/daily_moments_data/
+!data/daily_distribution_data/
+!data/daily_bid_ask_moments_data/
+!data/daily_bid_ask_distribution_data/
 
 # Python bytecode
 __pycache__/

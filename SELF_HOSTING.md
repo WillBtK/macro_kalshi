@@ -86,16 +86,25 @@ only roughly the last ~100 days plus live. The full historical series exists onl
 in the authors' published data (their S3 bucket). Confirm the exact cutoff at run
 time via `KalshiHttpClient.get_historical_cutoff()` (`/historical/cutoff`).
 
-### The weekly GitHub Action — adapt, don't keep as-is
-`.github/workflows/daily-data.yml` (cron `5 17 * * 5`, Fridays 17:05 UTC)
-scrapes → converts → `aws s3 sync` to the **authors'** bucket
-`s3://kalshi-and-the-rise-of-macro-markets/`, and the reference website
-(`docs/index.html`, econfutures.com) reads CSVs **directly** from that public
-bucket. For self-hosting this must change: point it at **our own** storage
-(our S3 bucket + our `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` secrets) or a
-different persistence target (e.g. commit derived CSVs to the repo, or push to
-whatever store the future front-end reads). The schedule/steps are otherwise fine
-to keep.
+### The weekly GitHub Action — adapted for self-hosting
+Upstream, `.github/workflows/daily-data.yml` (cron `5 17 * * 5`, Fridays 17:05
+UTC) scraped → converted → `aws s3 sync`ed to the **authors'** bucket
+`s3://kalshi-and-the-rise-of-macro-markets/`, and their reference website
+(`docs/index.html`, econfutures.com) read CSVs directly from that public bucket.
+
+**This fork commits derived CSVs back to the repo instead** (chosen persistence):
+- The AWS steps are removed; a final step commits/pushes
+  `data/daily_moments_data`, `data/daily_distribution_data` (incl. `wide/`), the
+  bid/ask derived dirs, and `data/last_updated.txt`.
+- `permissions: contents: write` is set so the job can push.
+- `.gitignore` now tracks only the **derived** data dirs; raw
+  `data/trade_level_data/` and `data/orderbook_data/` stay ignored.
+- Requires the `KALSHI_KEYID` and `KALSHI_PRIVATE_KEY` repo secrets to be set.
+
+The future front-end can read these CSVs straight from the repo (raw GitHub URLs
+or a checkout) — no cloud storage or AWS credentials needed. Note
+`docs/index.html` still points at the authors' S3 bucket; it's kept only as a
+reference and will be replaced by our own front-end.
 
 ### This sandbox cannot reach Kalshi or CRAN
 The Claude Code web environment's egress policy blocks `api.elections.kalshi.com`

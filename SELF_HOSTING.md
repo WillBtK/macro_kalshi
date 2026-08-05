@@ -78,13 +78,19 @@ you receive a **Key ID** and download an **RSA private key** (`.pem`).
 
 ### March 2026 Kalshi API change — how far back we can pull
 Kalshi split trade access into **historical** (`/historical/trades`) and **live**
-(`/markets/trades`) endpoints. The code already pulls both, but the upstream
-README warns historical access is limited (noted as ~**100 days** currently) and
-that the authors are still developing a full-history method. **Implication:** a
-fresh scrape today cannot reconstruct the multi-year dataset from the paper —
-only roughly the last ~100 days plus live. The full historical series exists only
-in the authors' published data (their S3 bucket). Confirm the exact cutoff at run
-time via `KalshiHttpClient.get_historical_cutoff()` (`/historical/cutoff`).
+(`/markets/trades`) endpoints. The code pulls both and de-dupes.
+
+**Empirically (first live run, 2026-08-05), a fresh scrape retrieved full
+history — back to Dec 2022** for the CPI series (48 CPI-YoY contracts,
+`2022-12-08 → 2026-08-05`). So the ~100-day figure in the upstream README does
+**not** cap the `/historical/trades` endpoint here; it appears to describe the
+live `/markets/trades` window only. In other words, the multi-year paper dataset
+*is* reconstructible from the current API — contrary to the earlier reading of
+the README caveat. Still worth confirming per series and at run time via
+`KalshiHttpClient.get_historical_cutoff()` (`/historical/cutoff`), since Kalshi
+could change this. This also means the incremental/append design (below) is about
+saving the ~85-min re-scrape each run, not about rescuing history that would
+otherwise be lost.
 
 ### The weekly GitHub Action — adapted for self-hosting
 Upstream, `.github/workflows/daily-data.yml` (cron `5 17 * * 5`, Fridays 17:05

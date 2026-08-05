@@ -1,0 +1,79 @@
+name: Weekly Data Update
+
+on:
+  schedule:
+    - cron: "5 17 * * 5"   # Fridays 17:05 UTC
+  workflow_dispatch:        # allow manual triggering too
+
+# Needed so the job can commit the refreshed data back to the repo.
+permissions:
+  contents: write
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -----------------------
+      # Python setup + scrape
+      # -----------------------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: pip install pandas python-dotenv cryptography requests websockets
+
+      - name: Create data directories
+        run: |
+          mkdir -p data/trade_level_data
+          mkdir -p data/daily_distribution_data/wide
+          mkdir -p data/daily_moments_data
+          mkdir -p data/daily_bid_ask_distribution_data
+          mkdir -p data/daily_bid_ask_moments_data
+
+      - name: Run Python scraping script
+        env:
+          KALSHI_KEYID: ${{ secrets.KALSHI_KEYID }}
+          KALSHI_PRIVATE_KEY: ${{ secrets.KALSHI_PRIVATE_KEY }}
+        run: python code/kalshi_scraping/scrape_kalshi_trades.py
+
+      # -----------------------
+      # R setup + convert
+      # -----------------------
+      - name: Set up R
+        uses: r-lib/actions/setup-r@v2
+
+      - name: Install R dependencies
+        run: |
+          install.packages(c("tidyverse", "lubridate", "matrixStats", "collapse", "DescTools"),
+                          repos = c("https://packagemanager.posit.co/cran/__linux__/noble/latest",
+                                   "https://cloud.r-project.org"))
+        shell: Rscript {0}
+
+      - name: Run R script to convert to distributions and moments
+        run: Rscript code/convert_trades_to_pdfs/data_convert_runner.R
+
+      # -----------------------
+      # Commit derived data back to the repo
+      # (raw trade/orderbook data stays git-ignored; only the derived
+      #  CSVs the front-end reads are committed — see SELF_HOSTING.md)
+      # -----------------------
+      - name: Commit updated data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > data/last_updated.txt
+          git add -f data/daily_moments_data data/daily_distribution_data \
+                     data/daily_bid_ask_moments_data data/daily_bid_ask_distribution_data \
+                     data/last_updated.txt
+          if git diff --cached --quiet; then
+            echo "No data changes to commit."
+          else
+            git commit -m "Update Kalshi derived data ($(date -u +%Y-%m-%d))"
+            git push
+          fi

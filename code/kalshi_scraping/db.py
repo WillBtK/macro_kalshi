@@ -103,16 +103,21 @@ def connect():
     # rather than being percent-decoded by libpq's URL parser.
     p = urlsplit(url)
     if p.scheme in ("postgres", "postgresql") and p.hostname:
-        # Diagnostic (no secret leaked): confirms which host/user the string
-        # resolves to. Session-pooler user must look like 'postgres.<ref>'.
+        # A dedicated SUPABASE_DB_PASSWORD secret (raw password, no URL syntax)
+        # takes precedence over the password embedded in the URL — this avoids
+        # URL-transcription mistakes. Host/user/dbname still come from the URL.
+        pw_secret = os.getenv("SUPABASE_DB_PASSWORD")
+        pw = pw_secret if pw_secret else p.password
+        # Diagnostic (no secret leaked): confirms host/user and where the
+        # password came from. Session-pooler user must look like 'postgres.<ref>'.
         print(f"DB connect -> host={p.hostname} port={p.port or 5432} "
               f"user={p.username!r} dbname={(p.path or '/postgres').lstrip('/') or 'postgres'} "
-              f"password_len={len(p.password or '')}")
+              f"password_len={len(pw or '')} pw_source={'SUPABASE_DB_PASSWORD' if pw_secret else 'url'}")
         conn = psycopg2.connect(
             host=p.hostname,
             port=p.port or 5432,
             user=p.username,
-            password=p.password,
+            password=pw,
             dbname=(p.path or "/postgres").lstrip("/") or "postgres",
             sslmode="require",
             connect_timeout=30,

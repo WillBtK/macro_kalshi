@@ -50,6 +50,7 @@
   .tile .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:3px}
   .tile .v{font-size:21px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
   .tile .u{font-size:12px;color:var(--muted);margin-left:1px;font-weight:400}
+  .tile.strong .v{color:var(--s2)}
   .chart{width:100%;height:440px}
   .chart.tall{height:480px}
   .hist{width:100%;height:300px}
@@ -255,6 +256,10 @@
   const TS_ORDER=["latest","m1","m3","m6","e2025","e2024"], TS_COLORS=["--s1","--s2","--s3","--s4"];
   const EVENT_NAME={fed_levels:"FOMC meeting",headline_cpi_releases:"CPI release",core_cpi_releases:"CPI release",
     headline_cpi_releases_mom:"CPI release",headline_cpi_end_of_year:"CPI release",gdp_end_of_year:"GDP release",unemployment_releases:"jobs report"};
+  // latest realized-underlying tile: label + how to date-stamp it
+  const REALIZED_LABEL={fed_levels:"Fed Funds target, today",headline_cpi_releases:"CPI YoY, latest",core_cpi_releases:"Core CPI YoY, latest",
+    headline_cpi_releases_mom:"CPI MoM, latest",headline_cpi_end_of_year:"CPI YoY, latest",gdp_end_of_year:"Real GDP, latest qtr",unemployment_releases:"Unemployment, latest"};
+  const REALIZED_FREQ={fed_levels:"day",gdp_end_of_year:"quarter"}; // others: month
 
   const state={tab:"fwd",series:null,momentFwd:"mean",cadence:"1",momentTerm:"mean",contract:null,di:0,
     minVol:0,lowVol:"carry",dataMode:"summary",builderCols:[],
@@ -285,7 +290,7 @@
       if(t<momMin)momMin=t;if(t>momMax)momMax=t;}
     for(const c in byContract){const o=byContract[c],idx=o.t.map((_,i)=>i).sort((a,b)=>o.t[a]-o.t[b]);
       for(const k of ["t","ds","mean","median","mode","sd","vol"])o[k]=idx.map(i=>o[k][i]);}
-    const real=realized.map(r=>({t:parseD(r.date),v:r.value})).filter(r=>r.v!=null).sort((a,b)=>a.t-b.t);
+    const real=realized.map(r=>({t:parseD(r.date),v:r.value,ds:r.date})).filter(r=>r.v!=null).sort((a,b)=>a.t-b.t);
     const evset=new Set();for(const c in byContract){const e=byContract[c].expiry;if(e)evset.add(parseD(e));}
     const eventDates=[...evset].sort((a,b)=>a-b);
     return {byContract,realized:real,momMin,momMax,eventDates};
@@ -407,12 +412,20 @@
     $("cap-ts").textContent=`${meta.label} — ${pretty(state.contract)}. Mean/median/mode over the contract's trading life; shaded band is ±1 s.d.`+
       (anyLow?` Dashed = days under ${mv} contracts (${carry?"held at last liquid value":"shown as traded"}); their volume bars are marked orange.`:``);
   }
+  function realizedDate(ds,series){const f=REALIZED_FREQ[series]||"month";
+    if(f==="day")return fmtD(ds); if(f==="year")return ds.slice(0,4);
+    const d=new Date(parseD(ds));
+    if(f==="quarter")return `Q${Math.floor(d.getUTCMonth()/3)+1} ${d.getUTCFullYear()}`;
+    return `${MON3[d.getUTCMonth()]} ${d.getUTCFullYear()}`;}
   function renderTiles(){
-    const o=state.data[state.series].byContract[state.contract],i=state.di,u=(CFG.SERIES_META[state.series]||{}).unit||"";
+    const d=state.data[state.series],o=d.byContract[state.contract],i=state.di,u=(CFG.SERIES_META[state.series]||{}).unit||"";
     const dte=o.expiry?Math.round((parseD(o.expiry)-o.t[i])/DAY):null;
     const tv=o.vol.some(v=>v!=null)?o.vol.reduce((a,v)=>a+(v||0),0):null;
-    const tiles=[["Mean (selected day)",fmt(o.mean[i]),u],["Median",fmt(o.median[i]),u],["Implied s.d.",fmt(o.sd[i]),""],["Days to release",dte!=null&&dte>=0?dte:"0",""],["Total volume",commas(tv),""]];
-    $("tiles").innerHTML=tiles.map(([k,v,uu])=>`<div class="tile"><div class="k">${k}</div><div class="v">${v}<span class="u">${uu}</span></div></div>`).join("");
+    const tiles=[];
+    const rr=d.realized; if(rr&&rr.length){const lr=rr[rr.length-1];
+      tiles.push([`${REALIZED_LABEL[state.series]||"Latest actual"} · ${realizedDate(lr.ds,state.series)}`,fmt(lr.v),u,"strong"]);}
+    tiles.push(["Mean (selected day)",fmt(o.mean[i]),u],["Median",fmt(o.median[i]),u],["Implied s.d.",fmt(o.sd[i]),""],["Days to release",dte!=null&&dte>=0?dte:"0",""],["Total volume",commas(tv),""]);
+    $("tiles").innerHTML=tiles.map(([k,v,uu,cls])=>`<div class="tile${cls?" "+cls:""}"><div class="k">${k}</div><div class="v">${v}<span class="u">${uu}</span></div></div>`).join("");
   }
   function renderHist(){
     const o=state.data[state.series].byContract[state.contract],meta=CFG.SERIES_META[state.series]||{};

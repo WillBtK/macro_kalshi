@@ -1,906 +1,304 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kalshi-Implied Macroeconomic Expectations</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background: #f5f5f5;
-        }
-
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 40px 20px;
-        }
-
-        header {
-            background: white;
-            padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            margin-bottom: 30px;
-        }
-
-        h1 {
-            color: #2c3e50;
-            font-size: 2.2em;
-            margin-bottom: 15px;
-        }
-
-        .subtitle {
-            color: #666;
-            font-size: 1.1em;
-            margin-bottom: 20px;
-        }
-
-        .citation {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 5px;
-            border-left: 4px solid #3498db;
-            margin-top: 20px;
-        }
-
-        .citation-label {
-            font-weight: 600;
-            color: #2c3e50;
-            margin-bottom: 5px;
-        }
-
-        .citation a {
-            color: #3498db;
-            text-decoration: none;
-        }
-
-        .citation a:hover {
-            text-decoration: underline;
-        }
-
-        .section {
-            background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            margin-bottom: 30px;
-        }
-
-        h2 {
-            color: #2c3e50;
-            font-size: 1.6em;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 10px;
-        }
-
-        .dataset {
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .dataset:last-child {
-            border-bottom: none;
-        }
-
-        .dataset-title {
-            font-size: 1.3em;
-            color: #2c3e50;
-            margin-bottom: 10px;
-            font-weight: 600;
-        }
-
-        .dataset-description {
-            color: #666;
-            margin-bottom: 15px;
-        }
-
-        .file-list {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 5px;
-        }
-
-        .file-item {
-            padding: 8px 0;
-            display: flex;
-            align-items: center;
-        }
-
-        .file-item a {
-            color: #3498db;
-            text-decoration: none;
-            font-family: 'Courier New', monospace;
-            font-size: 0.95em;
-        }
-
-        .file-item a:hover {
-            text-decoration: underline;
-        }
-
-        .download-icon {
-            margin-right: 8px;
-            color: #3498db;
-        }
-
-        .last-updated {
-            background: #e8f4f8;
-            padding: 15px;
-            border-radius: 5px;
-            text-align: center;
-            font-size: 0.95em;
-            color: #2c3e50;
-        }
-
-        .about p {
-            margin-bottom: 15px;
-            color: #555;
-        }
-
-        footer {
-            text-align: center;
-            padding: 30px 20px;
-            color: #666;
-            font-size: 0.9em;
-        }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Macro Markets — Kalshi-implied forecasts</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<style>
+  :root{
+    --bg:#ffffff; --panel:#f7f8fa; --line:#e4e7eb; --ink:#14181f; --ink2:#404855;
+    --muted:#6b7480; --accent:#0b5ed7; --realized:#14181f;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#0f1115;--panel:#161a20;--line:#272c34;--ink:#eef1f5;--ink2:#c3cad4;
+          --muted:#8b95a1;--accent:#5b9bff;--realized:#eef1f5;}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+       line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 60px}
+  header h1{font-size:23px;margin:0 0 6px;letter-spacing:-.01em}
+  .lede{color:var(--ink2);font-size:14px;max-width:760px;margin:0 0 4px}
+  .lede a{color:var(--accent);text-decoration:none} .lede a:hover{text-decoration:underline}
+  .byline{color:var(--muted);font-size:12.5px;margin:2px 0 22px}
+  .controls{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:flex-end;
+            background:var(--panel);border:1px solid var(--line);border-radius:12px;
+            padding:14px 16px;margin-bottom:18px}
+  .ctl{display:flex;flex-direction:column;gap:5px}
+  .ctl label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+  select{font:14px var(--sans);padding:7px 10px;border:1px solid var(--line);border-radius:8px;
+         background:var(--bg);color:var(--ink);min-width:180px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{font:13px var(--sans);padding:7px 13px;border:0;background:var(--bg);color:var(--ink2);cursor:pointer}
+  .seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+  .seg button+button{border-left:1px solid var(--line)}
+  #chart{width:100%;height:520px}
+  .cap{color:var(--muted);font-size:12.5px;margin:8px 2px 0}
+  .status{padding:40px 12px;text-align:center;color:var(--muted);font-size:14px}
+  .foot{margin-top:26px;padding-top:16px;border-top:1px solid var(--line);
+        color:var(--muted);font-size:12px}
+  .foot code{font-family:var(--mono);font-size:11.5px}
+</style>
 </head>
-
 <body>
-    <div class="container">
-        <header>
-            <h1>Kalshi-Implied Macroeconomic Expectations</h1>
-            <p class="subtitle">Data supporting "Kalshi and The Rise of Macro Markets" (Diercks, Katz, Wright 2026)</p>
-            <p style="color: #555; margin-top: 10px;">Daily probability distributions and statistical moments on
-                macroeconomic expectations of Fed Funds Rates and other macroeconomic variables derived from Kalshi
-                prediction market data.</p>
-            <div class="citation">
-                <div class="citation-label">Please cite:</div>
-                <div>Diercks, A., Katz, J., & Wright, J. (2026). Kalshi and The Rise of Macro Markets. <a
-                        href="https://www.nber.org/papers/w34702" target="_blank">NBER Working Paper No. 34702</a></div>
-            </div>
-        </header>
+<div class="wrap">
+  <header>
+    <h1>Macro Markets — Kalshi-implied forecasts</h1>
+    <p class="lede">Market-implied forecast distributions extracted from Kalshi macro contracts,
+      replicating the method of Diercks, Katz &amp; Wright (2026),
+      <a href="https://www.nber.org/papers/w34702" target="_blank" rel="noopener">“Kalshi and the Rise of Macro Markets” (NBER WP 34702)</a>.
+      Each thin line is the market-implied path (the forecast term structure) as priced on a past date;
+      the bold line is what actually happened.</p>
+    <p class="byline">Data: Kalshi trades → distributions/moments (this pipeline) + realized outcomes from FRED. Original method: Diercks, Katz &amp; Wright (2026).</p>
+  </header>
 
-
-        <div class="section about">
-            <h2>About This Data</h2>
-            <p>This dataset contains processed data from Kalshi prediction markets, providing daily estimates of
-                market-implied probability distributions for key macroeconomic variables including Federal Funds Rates,
-                CPI (both headline and core), GDP growth, and unemployment rates.</p>
-            <p>The data is derived from trade-level and orderbook-level observations from Kalshi's prediction markets
-                and is updated daily through an automated pipeline. Researchers can use this data to study how market
-                expectations evolve over time and how they respond to economic news and policy announcements.</p>
-            <p><strong>Data Format:</strong> All files are provided as CSV (comma-separated values) files with headers.
-                The distribution files use wide format where each row represents a date and contract, with one column
-                per strike value containing the probability mass at that outcome. The moments files contain summary
-                statistics with one row per date.</p>
-            <p><strong>Update Frequency:</strong> This dataset is updated weekly on Fridays,
-                approximately noon EST.</p>
-        </div>
-
-        <div class="section">
-            <h2>Explore the Data</h2>
-            <p style="color: #666; margin-bottom: 20px;">Explore how market expectations evolved over time. Select a
-                variable and moment to visualize.</p>
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
-                <div><label
-                        style="display: block; margin-bottom: 5px; font-weight: 600; color: #2c3e50;">Variable</label>
-                    <select id="variableSelect"
-                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
-                        <option value="fed_levels">Fed Funds Levels</option>
-                        <option value="headline_cpi_releases">Headline CPI Releases</option>
-                        <option value="core_cpi_releases">Core CPI Releases</option>
-                        <option value="headline_cpi_releases_mom">Headline CPI Releases (MoM)</option>
-                        <option value="headline_cpi_end_of_year">Headline CPI End of Year</option>
-                        <option value="unemployment_releases">Unemployment Releases</option>
-                        <option value="gdp_end_of_year">GDP End of Year</option>
-                    </select>
-                </div>
-                <div><label
-                        style="display: block; margin-bottom: 5px; font-weight: 600; color: #2c3e50;">Contract</label>
-                    <select id="contractSelect"
-                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
-                        <option value="">Loading contracts...</option>
-                    </select>
-                </div>
-                <div><label style="display: block; margin-bottom: 5px; font-weight: 600; color: #2c3e50;">Moment</label>
-                    <select id="momentSelect"
-                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
-                        <option value="mean">Mean</option>
-                        <option value="median">Median</option>
-                        <option value="mode">Mode</option>
-                        <option value="variance">Variance</option>
-                        <option value="skewness">Skewness</option>
-                        <option value="kurtosis">Kurtosis</option>
-                    </select>
-                </div>
-            </div>
-            <div style="margin-bottom: 20px;">
-                <button id="addComparisonBtn"
-                    style="padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; font-weight: 600;">+
-                    Add Comparison</button>
-                <button id="removeComparisonBtn"
-                    style="display: none; padding: 10px 20px; background: #e74c3c; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; font-weight: 600; margin-left: 10px;">Remove
-                    Comparison</button>
-                <div id="axisToggle" style="display: none; margin-left: 20px;"><label
-                        style="color: #2c3e50; font-weight: 600;"><input type="checkbox" id="dualAxisCheckbox" checked
-                            style="margin-right: 5px;">Use separate y-axes</label></div>
-            </div>
-            <div id="comparisonControls"
-                style="display: none; background: #f8f9fa; padding: 20px; border-radius: 5px; margin-bottom: 20px;">
-                <h3 style="margin: 0 0 15px 0; color: #2c3e50; font-size: 1.1em;">Comparison Line</h3>
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
-                    <div><label
-                            style="display: block; margin-bottom: 5px; font-weight: 600; color: #2c3e50;">Variable</label>
-                        <select id="variableSelect2"
-                            style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
-                            <option value="fed_levels">Fed Funds Levels</option>
-                            <option value="headline_cpi_releases">Headline CPI Releases</option>
-                            <option value="core_cpi_releases">Core CPI Releases</option>
-                            <option value="headline_cpi_releases_mom">Headline CPI Releases (MoM)</option>
-                            <option value="headline_cpi_end_of_year">Headline CPI End of Year</option>
-                            <option value="unemployment_releases">Unemployment Releases</option>
-                            <option value="gdp_end_of_year">GDP End of Year</option>
-                        </select>
-                    </div>
-                    <div><label
-                            style="display: block; margin-bottom: 5px; font-weight: 600; color: #2c3e50;">Contract</label><select
-                            id="contractSelect2"
-                            style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
-                            <option value="">Loading contracts...</option>
-                        </select></div>
-                    <div><label
-                            style="display: block; margin-bottom: 5px; font-weight: 600; color: #2c3e50;">Moment</label>
-                        <select id="momentSelect2"
-                            style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
-                            <option value="mean">Mean</option>
-                            <option value="median">Median</option>
-                            <option value="mode">Mode</option>
-                            <option value="variance">Variance</option>
-                            <option value="skewness">Skewness</option>
-                            <option value="kurtosis">Kurtosis</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-            <div id="loadingMessage" style="text-align: center; padding: 40px; color: #666;">Loading data...</div>
-            <div id="chart" style="width: 100%; height: 500px; display: none;"></div>
-            <div id="distributionSection"
-                style="display: none; margin-top: 30px; padding-top: 30px; border-top: 2px solid #e0e0e0;">
-                <h3 style="color: #2c3e50; margin-bottom: 10px;">Probability Distribution</h3>
-                <p id="distributionHint" style="color: #666; margin-bottom: 15px;">Click any point on the chart above to
-                    view its probability distribution</p>
-                <div id="distributionLoading" style="display: none; text-align: center; padding: 40px; color: #666;">
-                    Loading distribution...</div>
-                <div id="distributionChart" style="width: 100%; height: 400px; display:
-                none;"></div>
-                <div id="dateSliderSection"
-                    style="display: none; margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
-                    <label style="display: block; margin-bottom: 10px; font-weight: 600; color: #2c3e50;">
-                        Select Date: <span id="selectedDateLabel" style="color: #3498db;"></span>
-                    </label>
-                    <input type="range" id="dateSlider" style="width: 100%; cursor: pointer;">
-                </div>
-            </div>
-        </div>
-        <div class="section">
-            <h2>Available Datasets</h2>
-            <div class="dataset">
-                <div class="dataset-title">Probability Distributions</div>
-                <div class="dataset-description">Daily probability distributions for each macroeconomic variable. Each
-                    row represents a date and contract, with one column per strike value containing
-                    the probability at that outcome, plus a <code>total_volume</code> column. Only includes contracts
-                    within 2 months of the horizon and excludes the most recent day.</div>
-                <div class="file-list">
-                    <div class="file-item"><span class="download-icon">⬇</span><a
-                            href="https://kalshi-and-the-rise-of-macro-markets.s3.amazonaws.com/daily_distribution_data/wide/daily_distributions_fed_levels.csv"
-                            download>FOMC Decisions</a></div>
-                    <div class="file-item"><span class="download-icon">⬇</span><a
-                            href="https://kalshi-and-the-rise-of-macro-markets.s3.amazonaws.com/daily_distribution_data/wide/daily_distributions_headline_cpi_releases_mom.csv"
-                            download>Headline CPI Releases (MoM)</a></div>
-                    <div class="file-item"><span class="download-icon">⬇</span><a
-                            href="https://kalshi-and-the-rise-of-macro-markets.s3.amazonaws.com/daily_distribution_data/wide/daily_distributions_headline_cpi_releases.csv"
-                            download>Headline CPI Releases (YoY)</a></div>
-                    <div class="file-item"><span class="download-icon">⬇</span><a
-                            href="https://kalshi-and-the-rise-of-macro-markets.s3.amazonaws.com/daily_distribution_data/wide/daily_distributions_core_cpi_releases.csv"
-                            download>Core CPI Releases</a></div>
-                    <div class="file-item"><span class="download-icon">⬇</span><a
-                            href="https://kalshi-and-the-rise-of-macro-markets.s3.amazonaws.com/daily_distribution_data/wide/daily_distributions_unemployment_releases.csv"
-                            download>Unemployment Releases</a></div>
-                    <div class="file-item"><span class="download-icon">⬇</span><a
-                            href="https://kalshi-and-the-rise-of-macro-markets.s3.amazonaws.com/daily_distribution_data/wide/daily_distributions_gdp_end_of_year.csv"
-                            download>End-of-year GDP</a></div>
-                    <div class="file-item"><span class="download-icon">⬇</span><a
-                            href="https://kalshi-and-the-rise-of-macro-markets.s3.amazonaws.com/daily_distribution_data/wide/daily_distributions_headline_cpi_end_of_year.csv"
-                            download>End-of-year CPI</a></div>
-                </div>
-            </div>
-            <div class="dataset">
-                <div class="dataset-title">Statistical Moments</div>
-                <div class="dataset-description">Daily summary statistics (mean, variance, skewness, kurtosis, etc.)
-                    computed from the probability distributions. Each row represents one date with multiple statistical
-                    measures.</div>
-                <div class="file-list">
-                    <div class="file-item"><span class="download-icon">⬇</span><a
-                            href="https://kalshi-and-the-rise-of-macro-markets.s3.amazonaws.com/daily_moments_data/daily_moments_fed_levels.csv"
-                            download>FOMC Decisions</a></div>
-                    <div class="file-item"><span class="download-icon">⬇</span><a
-                            href="https://kalshi-and-the-rise-of-macro-markets.s3.amazonaws.com/daily_moments_data/daily_moments_headline_cpi_releases_mom.csv"
-                            download>Headline CPI Releases (MoM)</a></div>
-                    <div class="file-item"><span class="download-icon">⬇</span><a
-                            href="https://kalshi-and-the-rise-of-macro-markets.s3.amazonaws.com/daily_moments_data/daily_moments_headline_cpi_releases.csv"
-                            download>Headline CPI Releases (YoY)</a></div>
-                    <div class="file-item"><span class="download-icon">⬇</span><a
-                            href="https://kalshi-and-the-rise-of-macro-markets.s3.amazonaws.com/daily_moments_data/daily_moments_core_cpi_releases.csv"
-                            download>Core CPI Releases</a></div>
-                    <div class="file-item"><span class="download-icon">⬇</span><a
-                            href="https://kalshi-and-the-rise-of-macro-markets.s3.amazonaws.com/daily_moments_data/daily_moments_unemployment_releases.csv"
-                            download>Unemployment Releases</a></div>
-                    <div class="file-item"><span class="download-icon">⬇</span><a
-                            href="https://kalshi-and-the-rise-of-macro-markets.s3.amazonaws.com/daily_moments_data/daily_moments_gdp_end_of_year.csv"
-                            download>End-of-year GDP</a></div>
-                    <div class="file-item"><span class="download-icon">⬇</span><a
-                            href="https://kalshi-and-the-rise-of-macro-markets.s3.amazonaws.com/daily_moments_data/daily_moments_headline_cpi_end_of_year.csv"
-                            download>End-of-year CPI</a></div>
-                </div>
-            </div>
-            <div class="last-updated" id="lastUpdated">Loading update information...</div>
-        </div>
-
-        <footer>
-            <p>Data collected and processed using methodology from Diercks, Katz, and Wright (2026)</p>
-            <p style="margin-top: 10px; font-size: 0.85em;">Questions or issues? Please reference the <a
-                    href="https://www.nber.org/papers/w34702" target="_blank" style="color: #3498db;">working paper</a>
-                for methodology details.</p>
-        </footer>
+  <div class="controls">
+    <div class="ctl">
+      <label for="series">Series</label>
+      <select id="series"></select>
     </div>
-    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
-    <script>
-        // ============================================
-        // INITIALIZATION AND STATE
-        // ============================================
-        let currentData = null;
-        let currentData2 = null;
-        let availableContracts = [];
-        let availableContracts2 = [];
-        let currentDates = [];
-        let showComparison = false;
-        let useDualAxis = true;
-        let cachedDistributionData = null;
-
-        // ============================================
-        // UTILITY FUNCTIONS
-        // ============================================
-
-        async function loadLastUpdated() {
-            try {
-                const response = await fetch('https://kalshi-and-the-rise-of-macro-markets.s3.amazonaws.com/last_updated.txt');
-                const text = await response.text();
-                document.getElementById('lastUpdated').innerHTML = `<strong>Last Updated:</strong> ${text.trim()}`;
-            } catch (error) {
-                document.getElementById('lastUpdated').innerHTML = '<strong>Last Updated:</strong> Information unavailable';
-            }
-        }
-
-        async function loadChartData(variable) {
-            const url = `https://kalshi-and-the-rise-of-macro-markets.s3.amazonaws.com/daily_moments_data/daily_moments_${variable}.csv`;
-            try {
-                const response = await fetch(url);
-                const text = await response.text();
-                return parseCSV(text);
-            } catch (error) {
-                console.error('Error loading data:', error);
-                return null;
-            }
-        }
-
-        function parseCSV(text) {
-            const lines = text.trim().split('\n');
-            const headers = lines[0].split(',').map(h => h.trim());
-            const data = [];
-
-            for (let i = 1; i < lines.length; i++) {
-                const values = lines[i].split(',');
-                const row = {};
-                headers.forEach((header, index) => {
-                    row[header] = values[index];
-                });
-                data.push(row);
-            }
-
-            return { headers, data };
-        }
-
-        function parseContractToQuestion(contract) {
-            const parts = contract.split('-');
-            if (parts.length < 2) return contract;
-
-            const dateStr = parts[1];
-            const year = '20' + dateStr.substring(0, 2);
-            const monthCode = dateStr.substring(2);
-
-            const monthMap = {
-                'JAN': 'January', 'FEB': 'February', 'MAR': 'March', 'APR': 'April',
-                'MAY': 'May', 'JUN': 'June', 'JUL': 'July', 'AUG': 'August',
-                'SEP': 'September', 'OCT': 'October', 'NOV': 'November', 'DEC': 'December'
-            };
-
-            return `${monthMap[monthCode] || monthCode} ${year}`;
-        }
-
-        function getVariableTitle(variable) {
-            const titles = {
-                'core_cpi_releases': 'Core CPI Releases',
-                'fed_levels': 'Fed Funds Levels',
-                'gdp_end_of_year': 'GDP End of Year',
-                'headline_cpi_end_of_year': 'Headline CPI End of Year',
-                'headline_cpi_releases_mom': 'Headline CPI Releases (MoM)',
-                'headline_cpi_releases': 'Headline CPI Releases',
-                'unemployment_releases': 'Unemployment Releases'
-            };
-            return titles[variable] || variable;
-        }
-
-        function getContractSortValue(contract) {
-            const parts = contract.split('-');
-            if (parts.length < 2) return 0;
-
-            const dateStr = parts[1];
-            const year = parseInt(dateStr.substring(0, 2));
-            const monthCode = dateStr.substring(2);
-
-            const monthOrder = {
-                'JAN': 1, 'FEB': 2, 'MAR': 3, 'APR': 4, 'MAY': 5, 'JUN': 6,
-                'JUL': 7, 'AUG': 8, 'SEP': 9, 'OCT': 10, 'NOV': 11, 'DEC': 12
-            };
-
-            return year * 100 + (monthOrder[monthCode] || 0);
-        }
-
-        function filterRecentContracts(contracts, variable) {
-            // Don't filter annual contracts - show all
-            const annualVariables = ['gdp_end_of_year', 'headline_cpi_end_of_year'];
-            if (annualVariables.includes(variable)) {
-                return contracts;
-            }
-
-            if (contracts.length === 0) return contracts;
-
-            // Current month as an absolute month index (year*12 + month).
-            const now = new Date();
-            const currentMonthIndex = now.getFullYear() * 12 + (now.getMonth() + 1);
-
-            const filtered = contracts.filter(contract => {
-                const contractMonthIndex = getContractMonthIndex(contract);
-                if (contractMonthIndex === null) return false;
-                const monthsDiff = contractMonthIndex - currentMonthIndex;
-                return monthsDiff <= 2;
-            });
-
-            return filtered.length > 0 ? filtered : contracts;
-        }
-
-        function getContractMonthIndex(contract) {
-            const parts = contract.split('-');
-            if (parts.length < 2) return null;
-
-            const dateStr = parts[1];
-            const year = 2000 + parseInt(dateStr.substring(0, 2), 10);
-            const monthCode = dateStr.substring(2);
-
-            const monthOrder = {
-                'JAN': 1, 'FEB': 2, 'MAR': 3, 'APR': 4, 'MAY': 5, 'JUN': 6,
-                'JUL': 7, 'AUG': 8, 'SEP': 9, 'OCT': 10, 'NOV': 11, 'DEC': 12
-            };
-
-            const month = monthOrder[monthCode];
-            if (!month) return null;
-
-            return year * 12 + month;
-        }
-
-        // ============================================
-        // DISTRIBUTION FUNCTIONS
-        // ============================================
-
-        async function loadDistributionData(variable, contract, date) {
-            const url = `https://kalshi-and-the-rise-of-macro-markets.s3.amazonaws.com/daily_distribution_data/daily_distributions_${variable}.csv`;
-            try {
-                const response = await fetch(url);
-                const text = await response.text();
-                const parsed = parseCSV(text);
-                return parsed.data.filter(row =>
-                    row.contract_preamble === contract && row.date === date
-                );
-            } catch (error) {
-                console.error('Error loading distribution data:', error);
-                return null;
-            }
-        }
-
-        async function showDistribution(variable, contract, date) {
-            document.getElementById('distributionSection').style.display = 'block';
-            document.getElementById('distributionHint').style.display = 'none';
-
-            const chartDiv = document.getElementById('distributionChart');
-            const isFirstLoad = !chartDiv.data;
-
-            if (isFirstLoad) {
-                document.getElementById('distributionLoading').style.display = 'block';
-                chartDiv.style.display = 'none';
-            }
-
-            const distributionData = await loadDistributionData(variable, contract, date);
-
-            if (!distributionData || distributionData.length === 0) {
-                document.getElementById('distributionLoading').innerHTML =
-                    '<span style="color: #e74c3c;">No distribution data available for this date</span>';
-                return;
-            }
-
-            distributionData.sort((a, b) => parseFloat(a.strike) - parseFloat(b.strike));
-
-            const strikes = distributionData.map(row => parseFloat(row.strike));
-            const probabilities = distributionData.map(row => parseFloat(row.probability));
-
-            const binLabels = strikes.map((strike, i) => {
-                if (i === 0) return `< ${strike.toFixed(2)}`;
-                if (i === strikes.length - 1) return `≥ ${strike.toFixed(2)}`;
-                return `${strike.toFixed(2)} - ${strikes[i + 1].toFixed(2)}`;
-            });
-
-            const trace = {
-                x: binLabels,
-                y: probabilities,
-                type: 'bar',
-                text: probabilities.map(p => `${p.toFixed(1)}%`),
-                textposition: 'outside',
-                marker: { color: '#3498db', line: { color: '#2980b9', width: 1 } },
-                hovertemplate: '%{x}<br>Probability: %{y:.2f}%<extra></extra>'
-            };
-
-            const layout = {
-                title: {
-                    text: `Distribution for ${getVariableTitle(variable)} - ${parseContractToQuestion(contract)} on ${date}`,
-                    font: { size: 16, color: '#2c3e50' }
-                },
-                xaxis: { title: 'Outcome Range', gridcolor: '#f0f0f0' },
-                yaxis: { title: 'Probability (%)', gridcolor: '#f0f0f0' },
-                plot_bgcolor: '#fafafa',
-                paper_bgcolor: 'white',
-                margin: { t: 60, r: 40, b: 60, l: 80 },
-                width: chartDiv.parentElement.offsetWidth,
-            };
-
-            const config = {
-                responsive: true,
-                displayModeBar: true,
-                modeBarButtonsToRemove: ['lasso2d', 'select2d'],
-                displaylogo: false
-            };
-
-            if (isFirstLoad) {
-                Plotly.purge(chartDiv);
-                Plotly.newPlot('distributionChart', [trace], layout, config);
-                chartDiv.style.display = 'block';
-                document.getElementById('distributionLoading').style.display = 'none';
-            } else {
-                Plotly.react('distributionChart', [trace], layout, config);
-            }
-        }
-
-        // ============================================
-        // CHART FUNCTIONS
-        // ============================================
-
-        function updateChart() {
-            if (!currentData) return;
-
-            const moment = document.getElementById('momentSelect').value;
-            const variable = document.getElementById('variableSelect').value;
-            const selectedContract = document.getElementById('contractSelect').value;
-
-            if (!selectedContract) return;
-
-            let contractData = currentData.data.filter(row =>
-                row.contract_preamble === selectedContract
-            );
-
-            contractData = contractData.slice(0, -1);
-
-            const fedLevelsCutoffs = { 0: 1.5, 1: 4 };
-            if (variable === 'fed_levels') {
-                const contractIndex = availableContracts.indexOf(selectedContract);
-                const monthsCutoff = fedLevelsCutoffs[contractIndex] ?? 5;
-                if (monthsCutoff) {
-                    const allDates = contractData.map(row => row.date).sort();
-                    if (allDates.length > 0) {
-                        const latestDate = new Date(allDates[allDates.length - 1]);
-                        const cutoff = new Date(latestDate);
-                        cutoff.setMonth(cutoff.getMonth() - monthsCutoff);
-                        const cutoffStr = cutoff.toISOString().split('T')[0];
-                        contractData = contractData.filter(row => row.date >= cutoffStr);
-                    }
-                }
-            }
-
-            const dates = contractData.map(row => row.date);
-            const values = contractData.map(row => parseFloat(row[moment]));
-
-            const trace1 = {
-                x: dates,
-                y: values,
-                type: 'scatter',
-                mode: 'lines+markers',
-                name: `${getVariableTitle(variable)} - ${parseContractToQuestion(selectedContract)}`,
-                line: { color: '#3498db', width: 2 },
-                marker: { size: 4, color: '#3498db' },
-                hovertemplate: '<b>%{x}</b><br>' + moment + ': %{y:.4f}<extra></extra>',
-                yaxis: 'y'
-            };
-
-            const traces = [trace1];
-
-            if (showComparison && currentData2) {
-                const moment2 = document.getElementById('momentSelect2').value;
-                const variable2 = document.getElementById('variableSelect2').value;
-                const selectedContract2 = document.getElementById('contractSelect2').value;
-
-                if (selectedContract2) {
-                    const contractData2 = currentData2.data.filter(row =>
-                        row.contract_preamble === selectedContract2
-                    );
-
-                    const dates2 = contractData2.map(row => row.date);
-                    const values2 = contractData2.map(row => parseFloat(row[moment2]));
-
-                    const trace2 = {
-                        x: dates2,
-                        y: values2,
-                        type: 'scatter',
-                        mode: 'lines+markers',
-                        name: `${getVariableTitle(variable2)} - ${parseContractToQuestion(selectedContract2)}`,
-                        line: { color: '#e74c3c', width: 2 },
-                        marker: { size: 4, color: '#e74c3c' },
-                        hovertemplate: '<b>%{x}</b><br>' + moment2 + ': %{y:.4f}<extra></extra>',
-                        yaxis: useDualAxis ? 'y2' : 'y'
-                    };
-
-                    traces.push(trace2);
-                }
-            }
-
-            const title = showComparison && traces.length > 1
-                ? 'Comparison Chart'
-                : `${getVariableTitle(variable)} - ${parseContractToQuestion(selectedContract)} - ${moment.charAt(0).toUpperCase() + moment.slice(1)}`;
-
-            const layout = {
-                title: {
-                    text: title,
-                    font: { size: 18, color: '#2c3e50' }
-                },
-                xaxis: {
-                    title: 'Date',
-                    gridcolor: '#f0f0f0',
-                    domain: [0, 1]
-                },
-                yaxis: {
-                    title: showComparison && traces.length > 1 && useDualAxis
-                        ? `${moment.charAt(0).toUpperCase() + moment.slice(1)} (${parseContractToQuestion(selectedContract)})`
-                        : showComparison && traces.length > 1
-                            ? 'Value'
-                            : moment.charAt(0).toUpperCase() + moment.slice(1),
-                    titlefont: showComparison && traces.length > 1 && useDualAxis
-                        ? { color: '#3498db' }
-                        : { color: '#2c3e50' },
-                    tickfont: showComparison && traces.length > 1 && useDualAxis
-                        ? { color: '#3498db' }
-                        : { color: '#2c3e50' },
-                    gridcolor: '#f0f0f0'
-                },
-                hovermode: 'closest',
-                plot_bgcolor: '#fafafa',
-                paper_bgcolor: 'white',
-                margin: { t: 60, r: 80, b: 60, l: 80 },
-                showlegend: showComparison && traces.length > 1
-            };
-
-            if (showComparison && traces.length > 1 && useDualAxis) {
-                const moment2 = document.getElementById('momentSelect2').value;
-                const selectedContract2 = document.getElementById('contractSelect2').value;
-
-                layout.yaxis2 = {
-                    title: `${moment2.charAt(0).toUpperCase() + moment2.slice(1)} (${parseContractToQuestion(selectedContract2)})`,
-                    titlefont: { color: '#e74c3c' },
-                    tickfont: { color: '#e74c3c' },
-                    overlaying: 'y',
-                    side: 'right'
-                };
-            }
-
-            const config = {
-                responsive: true,
-                displayModeBar: true,
-                modeBarButtonsToRemove: ['lasso2d', 'select2d'],
-                displaylogo: false
-            };
-
-            Plotly.newPlot('chart', traces, layout, config);
-
-            const chartDiv = document.getElementById('chart');
-            chartDiv.on('plotly_click', function (data) {
-                const point = data.points[0];
-                const clickedDate = point.x;
-                const traceIndex = point.curveNumber;
-
-                if (traceIndex === 0) {
-                    const v = document.getElementById('variableSelect').value;
-                    const c = document.getElementById('contractSelect').value;
-                    showDistribution(v, c, clickedDate);
-                } else if (traceIndex === 1 && showComparison) {
-                    const v = document.getElementById('variableSelect2').value;
-                    const c = document.getElementById('contractSelect2').value;
-                    showDistribution(v, c, clickedDate);
-                }
-            });
-
-            document.getElementById('chart').style.display = 'block';
-            document.getElementById('loadingMessage').style.display = 'none';
-
-            if (dates.length > 0) {
-                const mostRecentDate = dates[dates.length - 1];
-                showDistribution(variable, selectedContract, mostRecentDate);
-            }
-
-            currentDates = dates;
-            if (dates.length > 0) {
-                const sliderSection = document.getElementById('dateSliderSection');
-                const slider = document.getElementById('dateSlider');
-                const dateLabel = document.getElementById('selectedDateLabel');
-
-                sliderSection.style.display = 'block';
-                slider.min = 0;
-                slider.max = dates.length - 1;
-                slider.value = dates.length - 1;
-
-                dateLabel.textContent = dates[dates.length - 1];
-
-                slider.oninput = function () {
-                    const selectedDate = dates[this.value];
-                    dateLabel.textContent = selectedDate;
-                    showDistribution(variable, selectedContract, selectedDate);
-                };
-
-                const mostRecentDate = dates[dates.length - 1];
-                showDistribution(variable, selectedContract, mostRecentDate);
-            }
-
-            document.getElementById('chart').style.display = 'block';
-            document.getElementById('loadingMessage').style.display = 'none';
-        }
-
-        function populateContractDropdown() {
-            if (!currentData) return;
-
-            let contracts = [...new Set(currentData.data.map(row => row.contract_preamble))];
-            contracts.sort((a, b) => getContractSortValue(b) - getContractSortValue(a));
-            contracts = filterRecentContracts(contracts, document.getElementById('variableSelect').value);
-
-            availableContracts = contracts;
-
-            const contractSelect = document.getElementById('contractSelect');
-            contractSelect.innerHTML = contracts.map(contract =>
-                `<option value="${contract}">${parseContractToQuestion(contract)}</option>`
-            ).join('');
-
-            if (contracts.length > 0) {
-                updateChart();
-            }
-        }
-
-        function populateContractDropdown2() {
-            if (!currentData2) return;
-
-            let contracts = [...new Set(currentData2.data.map(row => row.contract_preamble))];
-            contracts.sort((a, b) => getContractSortValue(b) - getContractSortValue(a));
-            contracts = filterRecentContracts(contracts, document.getElementById('variableSelect2').value);
-
-            availableContracts2 = contracts;
-
-            const contractSelect = document.getElementById('contractSelect2');
-            contractSelect.innerHTML = contracts.map(contract =>
-                `<option value="${contract}">${parseContractToQuestion(contract)}</option>`
-            ).join('');
-
-            if (contracts.length > 0) {
-                updateChart();
-            }
-        }
-
-        async function onVariableChange() {
-            const variable = document.getElementById('variableSelect').value;
-            document.getElementById('loadingMessage').style.display = 'block';
-            document.getElementById('chart').style.display = 'none';
-            document.getElementById('contractSelect').innerHTML = '<option value="">Loading contracts...</option>';
-
-            currentData = await loadChartData(variable);
-            if (currentData) {
-                populateContractDropdown();
-            } else {
-                document.getElementById('loadingMessage').innerHTML =
-                    '<span style="color: #e74c3c;">Error loading data. Please try again.</span>';
-            }
-        }
-
-        async function onVariableChange2() {
-            const variable = document.getElementById('variableSelect2').value;
-            document.getElementById('contractSelect2').innerHTML = '<option value="">Loading contracts...</option>';
-
-            currentData2 = await loadChartData(variable);
-            if (currentData2) {
-                populateContractDropdown2();
-            }
-        }
-
-        // ============================================
-        // INITIALIZATION
-        // ============================================
-
-        function initializeApp() {
-            document.getElementById('variableSelect').addEventListener('change', onVariableChange);
-            document.getElementById('contractSelect').addEventListener('change', updateChart);
-            document.getElementById('momentSelect').addEventListener('change', updateChart);
-
-            document.getElementById('variableSelect2').addEventListener('change', onVariableChange2);
-            document.getElementById('contractSelect2').addEventListener('change', updateChart);
-            document.getElementById('momentSelect2').addEventListener('change', updateChart);
-
-            document.getElementById('addComparisonBtn').addEventListener('click', () => {
-                showComparison = true;
-                document.getElementById('comparisonControls').style.display = 'block';
-                document.getElementById('addComparisonBtn').style.display = 'none';
-                document.getElementById('removeComparisonBtn').style.display = 'inline-block';
-                document.getElementById('axisToggle').style.display = 'inline-block';
-                onVariableChange2();
-            });
-
-            document.getElementById('removeComparisonBtn').addEventListener('click', () => {
-                showComparison = false;
-                currentData2 = null;
-                document.getElementById('comparisonControls').style.display = 'none';
-                document.getElementById('addComparisonBtn').style.display = 'inline-block';
-                document.getElementById('removeComparisonBtn').style.display = 'none';
-                document.getElementById('axisToggle').style.display = 'none';
-                updateChart();
-            });
-
-            document.getElementById('dualAxisCheckbox').addEventListener('change', (e) => {
-                useDualAxis = e.target.checked;
-                updateChart();
-            });
-
-            onVariableChange();
-        }
-
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializeApp);
-        } else {
-            initializeApp();
-        }
-
-        loadLastUpdated();
-    </script>
+    <div class="ctl">
+      <label>Central tendency</label>
+      <div class="seg" id="moment">
+        <button data-m="mean"   aria-pressed="true">Mean</button>
+        <button data-m="median" aria-pressed="false">Median</button>
+        <button data-m="mode"   aria-pressed="false">Mode</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <label>Forward-curve cadence</label>
+      <div class="seg" id="cadence">
+        <button data-c="1" aria-pressed="true">Monthly</button>
+        <button data-c="3" aria-pressed="false">Quarterly</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="status" class="status">Connecting to the data store…</div>
+  <div id="chart" style="display:none"></div>
+  <p id="cap" class="cap"></p>
+
+  <div class="foot">
+    Reads live from Supabase (PostgREST) with a public read-only key; realized underlyings from FRED via the daily pipeline.
+    Forward curves plot each contract’s market-implied <span id="footMoment">mean</span> at its target date, as priced on the labelled as-of date
+    (nearest observation within ~6 weeks). Contract target dates are the nominal period mid-month.
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script>
+(function(){
+  "use strict";
+  const CFG = window.MK_CONFIG;
+  const $ = id => document.getElementById(id);
+
+  // ---------- PostgREST fetch (paginated) ----------
+  async function pgFetch(table, query){
+    const base = `${CFG.SUPABASE_URL}/rest/v1/${table}?${query}`;
+    const headers = {apikey: CFG.SUPABASE_ANON_KEY, Authorization: `Bearer ${CFG.SUPABASE_ANON_KEY}`};
+    const page = 1000; let offset = 0, out = [];
+    for(;;){
+      const r = await fetch(`${base}&limit=${page}&offset=${offset}`, {headers});
+      if(!r.ok) throw new Error(`${table}: HTTP ${r.status} ${await r.text()}`);
+      const rows = await r.json();
+      out = out.concat(rows);
+      if(rows.length < page) break;
+      offset += page;
+    }
+    return out;
+  }
+
+  // ---------- contract-ticker parsing (shared with the offline explorer) ----------
+  const MONARR=["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+  const MON={JAN:"January",FEB:"February",MAR:"March",APR:"April",MAY:"May",JUN:"June",
+             JUL:"July",AUG:"August",SEP:"September",OCT:"October",NOV:"November",DEC:"December"};
+  function cmeta(c){
+    let m=c.match(/-(\d{2})([A-Z]{3})$/);
+    if(m&&MON[m[2]]!==undefined){const y=2000+ +m[1];const mi=MONARR.indexOf(m[2]);return{label:`${MON[m[2]]} ${y}`,key:y*12+mi};}
+    m=c.match(/-(\d{4})$/); if(m){const y=+m[1];return{label:`${y}`,key:y*12};}
+    m=c.match(/-(\d{2})$/); if(m){const y=2000+ +m[1];return{label:`${y}`,key:y*12};}
+    return {label:c.replace(/^KX/,""),key:-1};
+  }
+  // contract's target period as a plottable date (mid-month of its nominal month/year)
+  function contractDate(c){const k=cmeta(c).key;if(k<0)return null;return Date.UTC(Math.floor(k/12),k%12,15);}
+  const parseD = s => {const [y,m,d]=s.split("-").map(Number);return Date.UTC(y,m-1,d);};
+  const addMonths=(t,n)=>{const d=new Date(t);d.setUTCMonth(d.getUTCMonth()+n);return d.getTime();};
+  const DAY=864e5;
+
+  // ---------- state ----------
+  const state = {series:null, moment:"mean", cadence:1, data:{}};
+  // data[series] = {byContract:{c:{t:[ms],mean:[],median:[],mode:[]}}, realized:[{t,v}], momMin, momMax}
+
+  // ---------- data prep ----------
+  function prep(moments, realized){
+    const byContract={};
+    let momMin=Infinity, momMax=-Infinity;
+    for(const r of moments){
+      const c=r.contract_preamble; if(!byContract[c]) byContract[c]={t:[],mean:[],median:[],mode:[]};
+      const t=parseD(r.date);
+      byContract[c].t.push(t);
+      byContract[c].mean.push(r.mean); byContract[c].median.push(r.median); byContract[c].mode.push(r.mode);
+      if(t<momMin)momMin=t; if(t>momMax)momMax=t;
+    }
+    // ensure each contract's arrays are date-sorted
+    for(const c in byContract){
+      const o=byContract[c], idx=o.t.map((_,i)=>i).sort((a,b)=>o.t[a]-o.t[b]);
+      for(const key of ["t","mean","median","mode"]) o[key]=idx.map(i=>o[key][i]);
+    }
+    const real=realized.map(r=>({t:parseD(r.date),v:r.value})).filter(r=>r.v!=null).sort((a,b)=>a.t-b.t);
+    return {byContract, realized:real, momMin, momMax};
+  }
+
+  // value of a contract's chosen moment as priced on/near date T (nearest obs within ~45d)
+  function valueAsOf(o, T, moment){
+    let bi=-1,bd=Infinity;
+    for(let i=0;i<o.t.length;i++){const dd=Math.abs(o.t[i]-T);if(dd<bd){bd=dd;bi=i;}}
+    if(bi<0||bd>45*DAY) return null;
+    return o[moment][bi];
+  }
+
+  // build the fan of forward curves: one curve per as-of snapshot date
+  function forwardCurves(d, moment, cadence){
+    if(d.momMax===-Infinity) return [];
+    // snapshots: latest market date, then step back by `cadence` months to the earliest
+    const snaps=[]; let t=d.momMax;
+    while(t>=d.momMin-1){ snaps.push(t); t=addMonths(t,-cadence); if(snaps.length>72)break; }
+    const contracts=Object.keys(d.byContract).map(c=>({c,x:contractDate(c)})).filter(o=>o.x!=null);
+    const curves=[];
+    for(const T of snaps){
+      const pts=[];
+      for(const {c,x} of contracts){
+        const v=valueAsOf(d.byContract[c], T, moment);
+        if(v!=null) pts.push({x,v,c});
+      }
+      pts.sort((a,b)=>a.x-b.x);
+      if(pts.length>=2) curves.push({T, pts});
+    }
+    return curves; // ordered latest -> oldest
+  }
+
+  // ---------- render ----------
+  function render(){
+    const d=state.data[state.series]; if(!d) return;
+    const meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"};
+    const curves=forwardCurves(d, state.moment, state.cadence);
+    const traces=[];
+
+    // fan of forward curves (latest highlighted, older fading into the past)
+    const n=curves.length;
+    curves.forEach((cur,i)=>{
+      const isLatest = i===0;
+      const age = n<=1?0:i/(n-1);                 // 0 latest .. 1 oldest
+      const alpha = isLatest?1 : Math.max(0.12, 0.55*(1-age));
+      const color = isLatest ? "rgba(228,87,46,1)" : `rgba(11,94,215,${alpha})`;
+      const label = new Date(cur.T).toISOString().slice(0,10);
+      traces.push({
+        type:"scatter", mode:"lines+markers",
+        x:cur.pts.map(p=>p.x), y:cur.pts.map(p=>p.v),
+        line:{color, width:isLatest?2.6:1}, marker:{size:isLatest?5:2, color},
+        opacity:1, showlegend:isLatest,
+        name:isLatest?`Latest forward (as of ${label})`:"",
+        legendgroup:isLatest?"latest":"fan", hoverlabel:{namelength:-1},
+        hovertemplate:`as of ${label}<br>%{x|%b %Y}: %{y:.2f}<extra></extra>`,
+      });
+    });
+
+    // realized underlying (bold)
+    if(d.realized.length){
+      traces.push({
+        type:"scatter", mode:"lines",
+        x:d.realized.map(p=>p.t), y:d.realized.map(p=>p.v),
+        line:{color:getCSS("--realized"), width:3}, name:"Realized (actual)",
+        legendgroup:"realized",
+        hovertemplate:`realized<br>%{x|%b %Y}: %{y:.2f}<extra></extra>`,
+      });
+    }
+
+    // default visible window: 12 months before earliest market data
+    const xMinDefault = addMonths(d.momMin, -12);
+    let xMax=d.momMax;
+    Object.keys(d.byContract).forEach(c=>{const x=contractDate(c); if(x!=null&&x>xMax)xMax=x;});
+    if(d.realized.length) xMax=Math.max(xMax, d.realized[d.realized.length-1].t);
+
+    const grid=getCSS("--line"), ink=getCSS("--ink2"), paper=getCSS("--bg");
+    Plotly.react("chart", traces, {
+      paper_bgcolor:paper, plot_bgcolor:paper, font:{color:ink, family:"var(--sans)"},
+      margin:{t:12,r:14,b:20,l:52}, hovermode:"closest",
+      legend:{orientation:"h", y:1.06, x:0, font:{size:12}},
+      xaxis:{type:"date", gridcolor:grid, range:[xMinDefault,xMax],
+             rangeslider:{visible:true, thickness:0.08, bordercolor:grid},
+             rangeselector:{buttons:[
+               {step:"month",count:12,label:"1y",stepmode:"backward"},
+               {step:"month",count:24,label:"2y",stepmode:"backward"},
+               {step:"all",label:"All"}]}},
+      yaxis:{title:{text:meta.axis, font:{size:12}}, gridcolor:grid, zeroline:false},
+    }, {responsive:true, displayModeBar:false, displaylogo:false});
+
+    $("cap").textContent =
+      `${meta.label} — ${n} market-implied forward curve${n===1?"":"s"} (${state.moment}, `+
+      `${state.cadence===1?"monthly":"quarterly"} back to ${new Date(d.momMin).toISOString().slice(0,7)}) `+
+      `vs the realized outcome.`;
+  }
+  function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+  // ---------- load a series on demand (cache) ----------
+  async function ensureSeries(k){
+    if(state.data[k]){ $("status").style.display="none"; $("chart").style.display="block"; render(); return; }
+    $("status").style.display="block"; $("status").textContent=`Loading ${CFG.SERIES_META[k]?.label||k}…`;
+    $("chart").style.display="none";
+    const [moments, realized] = await Promise.all([
+      pgFetch("daily_moments", `select=contract_preamble,date,mean,median,mode&series=eq.${k}`),
+      pgFetch("underlying_history", `select=date,value&series=eq.${k}&order=date`),
+    ]);
+    state.data[k]=prep(moments, realized);
+    if(!moments.length){
+      $("status").textContent=`No data yet for ${CFG.SERIES_META[k]?.label||k}. `+
+        `The pipeline may still be seeding — check back shortly.`;
+      return;
+    }
+    $("status").style.display="none"; $("chart").style.display="block";
+    render();
+  }
+
+  // ---------- wiring ----------
+  function segWire(id, key){
+    $(id).addEventListener("click", e=>{
+      const b=e.target.closest("button"); if(!b) return;
+      [...$(id).children].forEach(x=>x.setAttribute("aria-pressed","false"));
+      b.setAttribute("aria-pressed","true");
+      state[key] = key==="cadence" ? +b.dataset.c : b.dataset.m;
+      if(key==="moment") $("footMoment").textContent=state.moment;
+      render();
+    });
+  }
+
+  async function init(){
+    const sel=$("series");
+    for(const k in CFG.SERIES_META){
+      const o=document.createElement("option"); o.value=k; o.textContent=CFG.SERIES_META[k].label; sel.appendChild(o);
+    }
+    state.series=sel.value;
+    sel.addEventListener("change", async ()=>{
+      state.series=sel.value;
+      try{ await ensureSeries(state.series); }
+      catch(err){ $("status").style.display="block"; $("chart").style.display="none";
+        $("status").textContent="Could not load data: "+err.message; console.error(err); }
+    });
+    segWire("moment","moment");
+    segWire("cadence","cadence");
+    try{
+      await ensureSeries(state.series);
+    }catch(err){
+      $("status").style.display="block"; $("chart").style.display="none";
+      $("status").textContent="Could not load data: "+err.message;
+      console.error(err);
+    }
+  }
+  init();
+})();
+</script>
 </body>
-
 </html>

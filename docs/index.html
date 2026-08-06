@@ -131,6 +131,10 @@
       <select id="contract"></select>
     </div>
     <div class="ctl ts-only hidden">
+      <label class="h">&nbsp;</label>
+      <div class="checks"><label><input type="checkbox" id="tsExpired">Include expired</label></div>
+    </div>
+    <div class="ctl ts-only hidden">
       <label class="h">Show</label>
       <div class="checks" id="tsShow">
         <label><input type="checkbox" data-k="mean" checked><span class="sw" style="background:var(--s1)"></span>Mean</label>
@@ -165,6 +169,10 @@
         <label><input type="checkbox" data-k="sd" checked>s.d.</label>
         <label><input type="checkbox" data-k="vol" checked>Volume</label>
       </div>
+    </div>
+    <div class="ctl data-only dsum hidden">
+      <label class="h">Expired</label>
+      <div class="checks"><label><input type="checkbox" id="dataExpired">Show expired</label></div>
     </div>
     <div class="ctl data-only dsum hidden">
       <label class="h">&nbsp;</label>
@@ -245,10 +253,16 @@
   const MONARR=["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
   const MON={JAN:"January",FEB:"February",MAR:"March",APR:"April",MAY:"May",JUN:"June",JUL:"July",AUG:"August",SEP:"September",OCT:"October",NOV:"November",DEC:"December"};
   function cmeta(c){let m=c.match(/-(\d{2})([A-Z]{3})$/);
-    if(m&&MON[m[2]]!==undefined){const y=2000+ +m[1];return{label:`${MON[m[2]]} ${y}`,key:y*12+MONARR.indexOf(m[2])};}
-    m=c.match(/-(\d{4})$/);if(m)return{label:`${+m[1]}`,key:+m[1]*12};
-    m=c.match(/-(\d{2})$/);if(m){const y=2000+ +m[1];return{label:`${y}`,key:y*12};}
-    return{label:c.replace(/^KX/,""),key:-1};}
+    if(m&&MON[m[2]]!==undefined){const y=2000+ +m[1];return{label:`${MON[m[2]]} ${y}`,key:y*12+MONARR.indexOf(m[2]),annual:false};}
+    m=c.match(/-(\d{4})$/);if(m)return{label:`${+m[1]}`,key:+m[1]*12,annual:true};
+    m=c.match(/-(\d{2})$/);if(m){const y=2000+ +m[1];return{label:`${y}`,key:y*12,annual:true};}
+    return{label:c.replace(/^KX/,""),key:-1,annual:false};}
+  // "expired" = the contract's nominal period has already resolved. Uses real
+  // today (not expiry_date, which the pipeline records unreliably for open
+  // contracts): a monthly contract expires once its target month is past; an
+  // annual contract once its target year is past.
+  const _now=new Date(), NOW_MK=_now.getUTCFullYear()*12+_now.getUTCMonth(), NOW_Y=_now.getUTCFullYear();
+  function isExpired(c){const m=cmeta(c);if(m.key<0)return false;return m.annual?(m.key/12<NOW_Y):(m.key<NOW_MK);}
   const pretty=c=>cmeta(c).label;
   function contractDate(c){const k=cmeta(c).key;if(k<0)return null;return Date.UTC(Math.floor(k/12),k%12,15);}
   const parseD=s=>{const[y,m,d]=s.split("-").map(Number);return Date.UTC(y,m-1,d);};
@@ -266,7 +280,7 @@
   const REALIZED_FREQ={fed_levels:"day",gdp_end_of_year:"year"}; // others: month
 
   const state={tab:"fwd",series:null,momentFwd:"mean",cadence:"1",momentTerm:"mean",contract:null,di:0,
-    minVol:0,lowVol:"carry",dataMode:"summary",builderCols:[],
+    minVol:0,lowVol:"carry",dataMode:"summary",builderCols:[],tsShowExpired:false,dataShowExpired:false,
     show:{mean:true,median:true,mode:true,band:true,vol:true},termSnaps:["latest","m1","m3"],
     dataSeries:{},cols:{mean:true,median:true,mode:true,sd:true,vol:true},data:{},dist:{}};
 
@@ -308,9 +322,14 @@
       const dd=Math.abs(o.t[i]-T);if(dd<bd){bd=dd;bi=i;}}
     return (bi<0||bd>45*DAY)?null:o[moment][bi];}
   function contractsSorted(d){return Object.keys(d.byContract).sort((a,b)=>cmeta(b).key-cmeta(a).key||(d.byContract[b].expiry||"").localeCompare(d.byContract[a].expiry||""));}
-  function defaultContract(d){const l=contractsSorted(d);return l.find(c=>d.byContract[c].t.length>=5)||l[0];}
+  function defaultContract(d){const l=contractsSorted(d);
+    return l.find(c=>!isExpired(c)&&d.byContract[c].t.length>=5)||l.find(c=>!isExpired(c))||l.find(c=>d.byContract[c].t.length>=5)||l[0];}
 
   // ================= FORWARD CURVES (grayscale history, accent present, black realized)
+  // y-range fitted to points within the visible x-window (dynamic rescale on zoom/pan)
+  function fwdYRange(x0,x1){const pts=renderForward._pts||[];let lo=Infinity,hi=-Infinity;
+    for(const p of pts){if(p.x>=x0&&p.x<=x1){if(p.v<lo)lo=p.v;if(p.v>hi)hi=p.v;}}
+    if(!isFinite(lo))return null;const pad=(hi-lo)*0.10||0.4;return [lo-pad,hi+pad];}
   function forwardCurves(d,moment,cadence,minVol){
     if(d.momMax===-Infinity)return[];
     let snaps=[];
@@ -343,10 +362,23 @@
     const xMinDefault=addMonths(d.momMin,-12);let xMax=d.momMax;
     Object.keys(d.byContract).forEach(c=>{const x=contractDate(c);if(x!=null&&x>xMax)xMax=x;});
     if(d.realized.length)xMax=Math.max(xMax,d.realized[d.realized.length-1].t);
+    // store all plotted points so the y-axis can rescale to the visible x-window
+    const allPts=[]; curves.forEach(cur=>cur.pts.forEach(p=>allPts.push(p))); if(d.realized.length)d.realized.forEach(p=>allPts.push({x:p.t,v:p.v}));
+    renderForward._pts=allPts;
+    const y0=fwdYRange(xMinDefault,xMax);
     Plotly.react("chart-fwd",traces,baseLayout({margin:{t:10,r:18,b:24,l:52},
       xaxis:{type:"date",gridcolor:cssv("--grid"),showgrid:false,zeroline:false,showline:false,ticks:"outside",ticklen:4,tickcolor:cssv("--grid"),
         range:[xMinDefault,xMax],rangeslider:{visible:true,thickness:0.07,bgcolor:cssv("--panel"),bordercolor:cssv("--line")}},
-      yaxis:{title:{text:meta.axis,font:{size:11.5}},gridcolor:cssv("--grid"),zeroline:false,showline:false}}),CFG_PLOT);
+      yaxis:{title:{text:meta.axis,font:{size:11.5}},gridcolor:cssv("--grid"),zeroline:false,showline:false,autorange:y0?false:true,range:y0||undefined}}),CFG_PLOT);
+    const fdiv=$("chart-fwd");
+    if(!fdiv._yBound){fdiv._yBound=true;
+      fdiv.on("plotly_relayout",e=>{
+        let x0,x1;
+        if(e["xaxis.range"]){x0=+new Date(e["xaxis.range"][0]);x1=+new Date(e["xaxis.range"][1]);}
+        else if(e["xaxis.range[0]"]!=null){x0=+new Date(e["xaxis.range[0]"]);x1=+new Date(e["xaxis.range[1]"]);}
+        else return;
+        const yr=fwdYRange(x0,x1); if(yr)Plotly.relayout("chart-fwd",{"yaxis.range":yr,"yaxis.autorange":false});
+      });}
     const ev=EVENT_NAME[state.series]||"release";
     const cadTxt=state.cadence==="evt0"?`as of each ${ev}`:state.cadence==="evt1"?`as of the day before each ${ev}`:
       `priced ${state.cadence==="3"?"quarterly":"monthly"} back to ${isoDay(d.momMin).slice(0,7)}`;
@@ -489,15 +521,16 @@
 
   // ================= DATA TABLE (+ sparklines + CSV)
   // ---- sparklines: Tufte start/end + min/max markers, with hover readout ----
+  // sparkline on a SHARED time axis [t0,t1] so expired contracts end left of live ones
   let SPARK_ID=0; const sparkReg=new Map();
-  function sparkSVG(vals,ds){
-    const pts=vals.map((v,i)=>({v,i})).filter(p=>p.v!=null);
+  function sparkSVG(vals,ds,t0,t1){
+    const pts=vals.map((v,i)=>({v,i,t:parseD(ds[i])})).filter(p=>p.v!=null);
     const w=170,h=28,pad=3,rg=36,plotW=w-rg;
     if(pts.length<2)return `<span style="color:var(--muted)">–</span>`;
     let lo=Infinity,hi=-Infinity,loi=pts[0].i,hii=pts[0].i;
     pts.forEach(p=>{if(p.v<lo){lo=p.v;loi=p.i;}if(p.v>hi){hi=p.v;hii=p.i;}});
-    const n=vals.length-1||1;
-    const X=i=>pad+(i/n)*(plotW-2*pad), Y=v=>hi===lo?h/2:pad+(1-(v-lo)/(hi-lo))*(h-2*pad);
+    const span=(t1>t0)?(t1-t0):1;
+    const X=i=>pad+((parseD(ds[i])-t0)/span)*(plotW-2*pad), Y=v=>hi===lo?h/2:pad+(1-(v-lo)/(hi-lo))*(h-2*pad);
     const dpath=pts.map((p,j)=>`${j?"L":"M"}${X(p.i).toFixed(1)},${Y(p.v).toFixed(1)}`).join("");
     const last=pts[pts.length-1];
     const sid="sp"+(SPARK_ID++); sparkReg.set(sid,{vals,ds,X,Y,w,pts});
@@ -538,18 +571,23 @@
     await Promise.all(sel.map(fetchSeries));
     sparkReg.clear();
     const cols=COLS.filter(([k])=>state.cols[k]);
+    // rows to show (respecting the expired filter) + a shared sparkline time axis
+    const rows=[]; let t0=Infinity,t1=-Infinity, nexp=0;
+    for(const k of sel){const d=state.data[k];if(!d)continue;
+      for(const c of contractsSorted(d)){const exp=isExpired(c);
+        if(exp&&!state.dataShowExpired){nexp++;continue;}
+        const o=d.byContract[c]; rows.push({k,c,o,exp});
+        if(o.t[0]<t0)t0=o.t[0]; if(o.t[o.t.length-1]>t1)t1=o.t[o.t.length-1];}}
     let html=`<table class="data"><thead><tr><th class="l">Series</th><th class="l">Contract</th><th class="l">Trajectory (mean)</th>`+
-      cols.map(([,l])=>`<th>${l}</th>`).join("")+`<th>Obs</th><th>Resolves</th></tr></thead><tbody>`;
-    let nrows=0;
-    for(const k of sel){const d=state.data[k];if(!d)continue;const label=CFG.SERIES_META[k]?.label||k;
-      for(const c of contractsSorted(d)){const o=d.byContract[c],i=o.t.length-1;
-        const cell=key=>{if(key==="vol"){const tv=o.vol.some(v=>v!=null)?o.vol.reduce((a,v)=>a+(v||0),0):null;return commas(tv);}return fmt(o[key][i]);};
-        html+=`<tr><td class="l">${label}</td><td class="l">${pretty(c)}</td><td class="l">${sparkSVG(o.mean,o.ds)}</td>`+
-          cols.map(([key])=>`<td>${cell(key)}</td>`).join("")+`<td>${o.t.length}</td><td>${o.expiry||"–"}</td></tr>`;
-        nrows++;}}
+      cols.map(([,l])=>`<th>${l}</th>`).join("")+`<th>Obs</th><th>Status</th></tr></thead><tbody>`;
+    for(const {k,c,o,exp} of rows){const i=o.t.length-1,label=CFG.SERIES_META[k]?.label||k;
+      const cell=key=>{if(key==="vol"){const tv=o.vol.some(v=>v!=null)?o.vol.reduce((a,v)=>a+(v||0),0):null;return commas(tv);}return fmt(o[key][i]);};
+      html+=`<tr${exp?' style="opacity:.55"':''}><td class="l">${label}</td><td class="l">${pretty(c)}</td><td class="l">${sparkSVG(o.mean,o.ds,t0,t1)}</td>`+
+        cols.map(([key])=>`<td>${cell(key)}</td>`).join("")+`<td>${o.t.length}</td><td>${exp?"expired":"live"}</td></tr>`;}
     html+="</tbody></table>";
     $("dataTable").innerHTML=html;
-    $("cap-data").innerHTML=`${nrows} contract${nrows===1?"":"s"} across ${sel.length} series. Latest-day values; the sparkline traces each contract's mean over its life — `+
+    $("cap-data").innerHTML=`${rows.length} contract${rows.length===1?"":"s"} across ${sel.length} series`+
+      (nexp&&!state.dataShowExpired?` (${nexp} expired hidden)`:``)+`. Sparklines share one time axis, so expired contracts end left of live ones — `+
       `<span style="color:var(--s1)">●</span> latest, <span style="color:var(--s2)">●</span> max, <span style="color:var(--s3)">●</span> min; hover for date &amp; value. Download for the full daily history.`;
   }
   function downloadCSV(){
@@ -559,7 +597,7 @@
     const head=["series","contract","date","expiry",...cols.map(([,l])=>l.toLowerCase().replace(/[^a-z]/g,""))];
     const lines=[head.join(",")];
     for(const k of sel){const d=state.data[k];if(!d)continue;
-      for(const c of contractsSorted(d)){const o=d.byContract[c];
+      for(const c of contractsSorted(d)){if(isExpired(c)&&!state.dataShowExpired)continue;const o=d.byContract[c];
         for(let i=0;i<o.ds.length;i++){
           const row=[k,c,o.ds[i],o.expiry||""];
           for(const[key]of cols)row.push(key==="vol"?(o.vol[i]==null?"":o.vol[i]):(o[key][i]==null?"":o[key][i]));
@@ -635,11 +673,21 @@
       document.querySelectorAll(".panel").forEach(p=>p.classList.add("hidden"));
       await fetchSeries(k);
       if(!Object.keys(state.data[k].byContract).length){$("status").textContent=`No data yet for ${CFG.SERIES_META[k]?.label||k}. The pipeline may still be seeding — check back shortly.`;return;}}
-    const d=state.data[k],sel=$("contract");sel.innerHTML="";
-    for(const c of contractsSorted(d)){const opt=document.createElement("option");opt.value=c;opt.textContent=`${pretty(c)}  ·  ${d.byContract[c].t.length} d`;sel.appendChild(opt);}
-    if(!state.contract||!d.byContract[state.contract])state.contract=defaultContract(d);
-    sel.value=state.contract;state.di=d.byContract[state.contract].t.length-1;
+    fillContractSelect(k);
+    const d=state.data[k];
+    if(!state.contract||!d.byContract[state.contract]||(isExpired(state.contract)&&!state.tsShowExpired))state.contract=defaultContract(d);
+    $("contract").value=state.contract;state.di=d.byContract[state.contract].t.length-1;
     $("status").style.display="none";await showTab();
+  }
+  function fillContractSelect(k){
+    const d=state.data[k],sel=$("contract");sel.innerHTML="";
+    for(const c of contractsSorted(d)){
+      const exp=isExpired(c); if(exp&&!state.tsShowExpired)continue;
+      const opt=document.createElement("option");opt.value=c;
+      opt.textContent=`${pretty(c)}${exp?" (expired)":""}  ·  ${d.byContract[c].t.length} d`;
+      if(exp)opt.style.color=cssv("--muted");
+      sel.appendChild(opt);
+    }
   }
   function updateSpec(){const m=CFG.SERIES_META[state.series]||{},el=$("seriesSpec");
     if(state.tab==="data"||!m.spec){el.style.display="none";return;}
@@ -696,6 +744,11 @@
       [...$("lowVol").children].forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");
       state.lowVol=b.dataset.v;renderTimeLine();});
     $("tsShow").addEventListener("change",e=>{const k=e.target.dataset.k;if(!k)return;state.show[k]=e.target.checked;renderTimeLine();});
+    $("tsExpired").addEventListener("change",e=>{state.tsShowExpired=e.target.checked;fillContractSelect(state.series);
+      if(isExpired(state.contract)&&!state.tsShowExpired){state.contract=defaultContract(state.data[state.series]);state.di=state.data[state.series].byContract[state.contract].t.length-1;}
+      $("contract").value=state.contract;
+      ensureDist(state.series,state.contract).then(renderTimeAll).catch(err=>{console.error(err);renderTimeAll();});});
+    $("dataExpired").addEventListener("change",e=>{state.dataShowExpired=e.target.checked;renderData();});
     $("dateSlider").addEventListener("input",e=>setDay(+e.target.value));
     $("chips").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;const id=b.dataset.id,i=state.termSnaps.indexOf(id);
       if(i>=0)state.termSnaps.splice(i,1);else if(state.termSnaps.length<4)state.termSnaps.push(id);renderTerm();});

@@ -56,6 +56,20 @@ SERIES = [
          moments="daily_moments_unemployment_releases.csv",
          dist="daily_distributions_unemployment_releases.csv",
          fred=dict(id="UNRATE", units="lin")),
+    # Quarterly real GDP growth, seasonally-adjusted annualised q/q (KXGDP).
+    # Realized = FRED quarterly real GDP % change (SAAR).
+    dict(key="gdp_quarterly", ticker="KXGDP",
+         trades="trade_level_data_gdp_quarterly.csv",
+         moments="daily_moments_gdp_quarterly.csv",
+         dist="daily_distributions_gdp_quarterly.csv",
+         fred=dict(id="A191RL1Q225SBEA", units="lin")),
+    # Nonfarm payrolls, monthly change in jobs (KXPAYROLLS).
+    # Realized = FRED total nonfarm payrolls, change from prior month (thousands).
+    dict(key="nonfarm_payrolls", ticker="KXPAYROLLS",
+         trades="trade_level_data_nonfarm_payrolls.csv",
+         moments="daily_moments_nonfarm_payrolls.csv",
+         dist="daily_distributions_nonfarm_payrolls.csv",
+         fred=dict(id="PAYEMS", units="chg")),
 ]
 
 TRADES_DIR = "data/trade_level_data"

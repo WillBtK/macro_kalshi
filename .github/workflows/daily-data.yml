@@ -41,6 +41,9 @@ jobs:
           mkdir -p data/trade_level_data
           mkdir -p data/daily_distribution_data/wide
           mkdir -p data/daily_moments_data
+          mkdir -p data/orderbook_data
+          mkdir -p data/daily_bid_ask_moments_data
+          mkdir -p data/daily_bid_ask_distribution_data
 
       # -----------------------
       # Incremental scrape -> Postgres, then export CSVs for the R conversion.
@@ -66,6 +69,15 @@ jobs:
           if-no-files-found: ignore
 
       # -----------------------
+      # Order-book (bid/ask candlestick) scrape for the quote-based distribution.
+      # Public Kalshi endpoints only (no secrets). Wrapped with if: always() so a
+      # hiccup here never blocks the trade pipeline.
+      # -----------------------
+      - name: Scrape order book (bid/ask candlesticks)
+        if: always()
+        run: python code/kalshi_scraping/scrape_orderbook.py
+
+      # -----------------------
       # R setup + convert
       # -----------------------
       - name: Set up R
@@ -81,6 +93,12 @@ jobs:
       - name: Run R script to convert to distributions and moments
         run: Rscript code/convert_trades_to_pdfs/data_convert_runner.R
 
+      # Quote-based (bid/ask midpoint) distributions from the order-book scrape,
+      # same middle-out CDF methodology. if: always() so a failure is isolated.
+      - name: Convert order book to quote distributions
+        if: always()
+        run: Rscript code/convert_trades_to_pdfs/orderbook_convert_runner.R
+
       # -----------------------
       # Load derived moments + distributions into Postgres (the data store the
       # front-end reads). Replaces each series in full.
@@ -90,6 +108,14 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: python code/kalshi_scraping/load_derived.py
+
+      # Load the quote-based distribution into the *_quotes tables.
+      - name: Load quote data into Postgres
+        if: always()
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: python code/kalshi_scraping/load_derived_quotes.py
 
       # -----------------------
       # Fetch each indicator's realised underlying series from FRED into Postgres

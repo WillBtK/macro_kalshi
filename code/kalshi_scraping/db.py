@@ -90,6 +90,37 @@ CREATE TABLE IF NOT EXISTS markets (
     close_time       TIMESTAMPTZ,
     expiration_time  TIMESTAMPTZ
 );
+
+-- Quote-based (bid/ask midpoint) counterparts to daily_moments/daily_distributions,
+-- derived from the order book rather than executed trades. Same shape; the
+-- front-end reads these when the "Quotes" source is selected.
+CREATE TABLE IF NOT EXISTS daily_moments_quotes (
+    series             TEXT NOT NULL,
+    contract_preamble  TEXT NOT NULL,
+    date               DATE NOT NULL,
+    expiry_date        DATE,
+    daily_volume       DOUBLE PRECISION,
+    mean               DOUBLE PRECISION,
+    median             DOUBLE PRECISION,
+    mode               DOUBLE PRECISION,
+    skewness           DOUBLE PRECISION,
+    kurtosis           DOUBLE PRECISION,
+    variance           DOUBLE PRECISION,
+    PRIMARY KEY (series, contract_preamble, date)
+);
+
+CREATE TABLE IF NOT EXISTS daily_distributions_quotes (
+    series             TEXT NOT NULL,
+    contract_preamble  TEXT NOT NULL,
+    date               DATE NOT NULL,
+    expiry_date        DATE,
+    strike             DOUBLE PRECISION NOT NULL,
+    probability        DOUBLE PRECISION,
+    yes_price          DOUBLE PRECISION,
+    adjusted_yes_price DOUBLE PRECISION,
+    daily_volume       DOUBLE PRECISION,
+    PRIMARY KEY (series, contract_preamble, date, strike)
+);
 """
 
 # Expose the derived tables (public market data) read-only to the Supabase
@@ -103,6 +134,8 @@ BEGIN
   EXECUTE 'ALTER TABLE daily_distributions ENABLE ROW LEVEL SECURITY';
   EXECUTE 'ALTER TABLE underlying_history ENABLE ROW LEVEL SECURITY';
   EXECUTE 'ALTER TABLE underlying_first_release ENABLE ROW LEVEL SECURITY';
+  EXECUTE 'ALTER TABLE daily_moments_quotes ENABLE ROW LEVEL SECURITY';
+  EXECUTE 'ALTER TABLE daily_distributions_quotes ENABLE ROW LEVEL SECURITY';
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
@@ -120,12 +153,18 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='underlying_first_release' AND policyname='public_read') THEN
     EXECUTE 'CREATE POLICY public_read ON underlying_first_release FOR SELECT USING (true)';
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='daily_moments_quotes' AND policyname='public_read') THEN
+    EXECUTE 'CREATE POLICY public_read ON daily_moments_quotes FOR SELECT USING (true)';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='daily_distributions_quotes' AND policyname='public_read') THEN
+    EXECUTE 'CREATE POLICY public_read ON daily_distributions_quotes FOR SELECT USING (true)';
+  END IF;
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
 DO $$
 BEGIN
-  EXECUTE 'GRANT SELECT ON daily_moments, daily_distributions, underlying_history, underlying_first_release TO anon, authenticated';
+  EXECUTE 'GRANT SELECT ON daily_moments, daily_distributions, underlying_history, underlying_first_release, daily_moments_quotes, daily_distributions_quotes TO anon, authenticated';
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
@@ -277,6 +316,34 @@ def replace_distributions(conn, series, rows):
         if rows:
             execute_values(cur, """
                 INSERT INTO daily_distributions
+                  (series, contract_preamble, date, expiry_date, strike,
+                   probability, yes_price, adjusted_yes_price, daily_volume)
+                VALUES %s
+            """, [(series,) + r for r in rows], page_size=2000)
+    conn.commit()
+
+
+def replace_quote_moments(conn, series, rows):
+    """Quote-based moments — same shape as replace_moments, into the *_quotes table."""
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM daily_moments_quotes WHERE series = %s", (series,))
+        if rows:
+            execute_values(cur, """
+                INSERT INTO daily_moments_quotes
+                  (series, contract_preamble, date, expiry_date, daily_volume,
+                   mean, median, mode, skewness, kurtosis, variance)
+                VALUES %s
+            """, [(series,) + r for r in rows], page_size=1000)
+    conn.commit()
+
+
+def replace_quote_distributions(conn, series, rows):
+    """Quote-based distributions — same shape as replace_distributions, into *_quotes."""
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM daily_distributions_quotes WHERE series = %s", (series,))
+        if rows:
+            execute_values(cur, """
+                INSERT INTO daily_distributions_quotes
                   (series, contract_preamble, date, expiry_date, strike,
                    probability, yes_price, adjusted_yes_price, daily_volume)
                 VALUES %s

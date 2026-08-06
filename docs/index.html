@@ -141,7 +141,11 @@
     </div>
     <div class="ctl risk-only hidden">
       <label class="h">View</label>
-      <div class="seg" id="riskView"><button data-w="horizon" aria-pressed="true">By horizon</button><button data-w="time" aria-pressed="false">Over time</button></div>
+      <div class="seg" id="riskView"><button data-w="horizon" aria-pressed="true">By horizon</button><button data-w="time" aria-pressed="false">Over time</button><button data-w="cmat" aria-pressed="false">Nth out</button></div>
+    </div>
+    <div class="ctl risk-only cmat-ctl hidden" id="riskNoutCtl">
+      <label class="h">Contracts out</label>
+      <div class="chips" id="riskNout" aria-label="Constant-maturity horizon (contracts out)"></div>
     </div>
     <div class="ctl notdata">
       <label class="h" for="minVol">Min contracts/day</label>
@@ -314,7 +318,7 @@
   const REALIZED_FREQ={fed_levels:"day",gdp_end_of_year:"year"}; // others: month
 
   const state={tab:"fwd",series:null,momentFwd:"mean",cadence:"1",momentTerm:"mean",contract:null,di:0,
-    riskMeasure:"sd",riskView:"horizon",
+    riskMeasure:"sd",riskView:"horizon",riskNout:[4],
     minVol:0,lowVol:"carry",dataMode:"summary",builderCols:[],tsShowExpired:false,dataShowExpired:false,
     show:{mean:true,median:true,mode:true,band:true,vol:true},termSnaps:["latest","m1","m3"],
     dataSeries:{},cols:{mean:true,median:true,mode:true,sd:true,vol:true},data:{},dist:{},
@@ -567,6 +571,29 @@
   // ================= UNCERTAINTY & SKEW (implied s.d. and asymmetry)
   // Reuses forwardCurves()/valueAsOf(), which are generic over which moment
   // column to read — here "sd" (implied standard deviation) or "skew".
+  const ord=n=>{const s=["th","st","nd","rd"],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);};
+  // Constant-maturity frames: for each trading date, the live contracts (target
+  // still in the future) sorted by horizon, each with its value in `measure`.
+  // The "Nth out" series is the N-th element per date — a fixed-horizon read.
+  function nthOutFrames(d,measure,minVol){
+    const dateSet=new Set();
+    for(const c in d.byContract)for(const t of d.byContract[c].t)dateSet.add(t);
+    const dates=[...dateSet].sort((a,b)=>a-b);
+    return dates.map(t=>{
+      const live=[];
+      for(const c in d.byContract){const x=contractDate(c);if(x==null||x<=t)continue;
+        const o=d.byContract[c],i=o.t.indexOf(t);if(i<0)continue;
+        if(minVol>0&&!(o.vol[i]!=null&&o.vol[i]>=minVol))continue;
+        const v=o[measure][i];if(v==null)continue;live.push({x,v});}
+      live.sort((a,b)=>a.x-b.x);
+      return {t,live};
+    });
+  }
+  // furthest-out horizon with enough history to be meaningful (>=15 obs)
+  function nthOutMaxN(frames){let maxN=1;
+    for(let N=1;N<=40;N++){const cnt=frames.reduce((a,f)=>a+(f.live.length>=N?1:0),0);
+      if(cnt>=15)maxN=N;else break;}
+    return Math.min(maxN,12);}
   function renderRisk(){
     const d=state.data[state.series],meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"};
     const measure=state.riskMeasure, isSk=measure==="skew";
@@ -589,7 +616,7 @@
       const ev=EVENT_NAME[state.series]||"release";
       cadTxt=state.cadence==="evt0"?`as of each ${ev}`:state.cadence==="evt1"?`as of the day before each ${ev}`:
         `priced ${state.cadence==="3"?"quarterly":"monthly"}`;
-    } else {
+    } else if(state.riskView==="time"){
       // over time: each contract's moment across its own trading life; nearest live one emphasised
       const cons=contractsSorted(d).filter(c=>d.byContract[c].t.length>=5);
       const emph=defaultContract(d);
@@ -607,7 +634,27 @@
         if(isEmph){const lp=lastPoint(xs,ys);if(lp)anns.push(endLabel(lp.x,lp.y,pretty(c),color));}});
       xTitle="Trading date";
       cadTxt="each contract over its life";
+    } else {
+      // constant maturity: the N-th nearest live contract as of each date (fixed horizon)
+      const frames=nthOutFrames(d,measure,state.minVol), maxN=nthOutMaxN(frames);
+      let sel=state.riskNout.filter(n=>n<=maxN); if(!sel.length)sel=[Math.min(4,maxN)];
+      state.riskNout=sel;
+      // render the N chips (available horizons), coloured to match their lines
+      $("riskNout").innerHTML=Array.from({length:maxN},(_,k)=>k+1).map(N=>{
+        const on=sel.includes(N),idx=sel.indexOf(N);
+        const dot=on?`<span class="dot" style="background:${cssv(TS_COLORS[idx%4])}"></span>`:"";
+        return `<button class="chip" data-n="${N}" aria-pressed="${on?"true":"false"}">${dot}${ord(N)} out</button>`;}).join("");
+      sel.slice(0,4).forEach((N,idx)=>{
+        const pts=frames.filter(f=>f.live.length>=N).map(f=>({t:f.t,v:f.live[N-1].v}));
+        if(pts.length<2)return;
+        const col=cssv(TS_COLORS[idx%4]);
+        traces.push({type:"scatter",mode:"lines",x:pts.map(p=>p.t),y:pts.map(p=>p.v),line:{color:col,width:2},connectgaps:false,
+          hovertemplate:`${ord(N)} contract out<br>%{x|%b %e, %Y}: %{y:.2f}${uUnit}<extra></extra>`});
+        const lp=pts[pts.length-1];anns.push(endLabel(lp.t,lp.v,`${ord(N)} out`,col));});
+      xTitle="Trading date";
+      cadTxt=`horizon held fixed at the N-th-nearest contract (max ${maxN} with enough history)`;
     }
+    $("riskNoutCtl").classList.toggle("hidden",state.riskView!=="cmat");
     if(isSk){ // zero reference + directional cues
       shapes.push({type:"line",xref:"paper",x0:0,x1:1,y0:0,y1:0,line:{color:cssv("--muted"),width:1,dash:"dot"}});
       anns.push({xref:"paper",yref:"paper",x:0.004,y:0.985,text:"↑ upside-skewed",showarrow:false,xanchor:"left",font:{size:10.5,color:cssv("--muted")}});
@@ -619,9 +666,12 @@
     const what=isSk
       ?`Skewness of the market-implied distribution (positive = upside tail, negative = downside; a nonparametric (mean−median)/MAD measure in [−1, 1]).`
       :`Market-implied uncertainty = the standard deviation of the day's distribution${meta.unit?` (in ${meta.unit})`:""}. A wider distribution ⇒ more disagreement about the outcome; it typically shrinks toward zero as a release nears. IQR would tell a similar story.`;
-    $("cap-risk").innerHTML=`${meta.label} — ${what} ${state.riskView==="horizon"
+    const viewTxt=state.riskView==="horizon"
       ?`Each line is the whole term structure across contract dates, ${cadTxt}; orange = current, paler = earlier snapshots.`
-      :`One line per contract across its trading life; orange = nearest live contract.`}`+(state.minVol>0?` Days under ${state.minVol} contracts excluded.`:``);
+      :state.riskView==="time"
+      ?`One line per contract across its trading life; orange = nearest live contract.`
+      :`<b>Constant maturity:</b> each line tracks the ${state.riskNout.map(ord).join(" / ")}-nearest contract as of every date, so the forecast horizon is held roughly fixed and moves reflect genuine shifts in uncertainty rather than the term-structure slope. Small jumps occur when a contract expires and the horizon rolls to the next. The front (1st) contract collapses toward each release; a mid horizon reads more cleanly.`;
+    $("cap-risk").innerHTML=`${meta.label} — ${what} ${viewTxt}`+(state.minVol>0?` Days under ${state.minVol} contracts excluded.`:``);
   }
 
   // ================= DATA TABLE (+ sparklines + CSV)
@@ -947,6 +997,11 @@
       [...$(id).children].forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");
       state[key]=b.dataset[attr];if(state.data[state.series])renderRisk();});}
     riskSeg("riskMeasure","riskMeasure","r");riskSeg("riskView","riskView","w");
+    $("riskNout").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;
+      const N=+b.dataset.n,i=state.riskNout.indexOf(N);
+      if(i>=0){if(state.riskNout.length>1)state.riskNout.splice(i,1);}   // keep at least one
+      else if(state.riskNout.length<4)state.riskNout.push(N);
+      state.riskNout.sort((a,b)=>a-b);renderRisk();});
     $("minVol").addEventListener("input",e=>{state.minVol=Math.max(0,Math.floor(+e.target.value||0));if(state.data[state.series])render();});
     $("lowVol").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
       [...$("lowVol").children].forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");

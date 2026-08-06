@@ -2,7 +2,7 @@ name: Daily Data Update
 
 on:
   schedule:
-    - cron: "5 11 * * *"   # daily, 11:05 UTC
+    - cron: "30 22 * * *"   # 22:30 UTC = 5:30pm EST / 6:30pm EDT, after the US close
   workflow_dispatch:        # allow manual triggering too
 
 # Never let two runs write to the database at once (a scheduled run overlapping

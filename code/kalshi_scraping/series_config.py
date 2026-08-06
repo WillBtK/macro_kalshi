@@ -15,11 +15,14 @@ loader, and the FRED collector.
 # fred:     {id, units} for the realised series on FRED (units: lin=level,
 #           pc1=% change from year ago, pch=% change from prior period)
 SERIES = [
+    # Kalshi KXFED resolves to the FOMC target *range*; a strike is the range's
+    # lower bound and the reported moments are the range midpoint. The realized
+    # comparison is therefore the target-range midpoint = (upper + lower) / 2.
     dict(key="fed_levels", ticker="KXFED",
          trades="trade_level_data_fed_levels.csv",
          moments="daily_moments_fed_levels.csv",
          dist="daily_distributions_fed_levels.csv",
-         fred=dict(id="DFEDTARU", units="lin")),
+         fred=dict(id="DFEDTARU", id2="DFEDTARL", units="lin")),
     dict(key="headline_cpi_releases", ticker="KXCPIYOY",
          trades="trade_level_data_headline_cpi_releases.csv",
          moments="daily_moments_headline_cpi_releases.csv",

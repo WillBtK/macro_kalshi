@@ -23,8 +23,8 @@ from series_config import SERIES
 FRED_URL = "https://api.stlouisfed.org/fred/series/observations"
 
 
-def fetch_series(fred_id, units, api_key):
-    """Return list of (date_str, float_value) for a FRED series, dropping gaps."""
+def fetch_one(fred_id, units, api_key):
+    """Return list of (date_str, float_value) for a single FRED series, dropping gaps."""
     params = {
         "series_id": fred_id,
         "api_key": api_key,
@@ -54,6 +54,16 @@ def fetch_series(fred_id, units, api_key):
     return out
 
 
+def fetch_series(f, api_key):
+    """Fetch a series' realised values. If `id2` is given, return the per-date
+    average of the two series (used for the Fed target-range midpoint)."""
+    base = fetch_one(f["id"], f["units"], api_key)
+    if not f.get("id2"):
+        return base
+    other = dict(fetch_one(f["id2"], f["units"], api_key))
+    return [(d, (v + other[d]) / 2.0) for d, v in base if d in other]
+
+
 def main():
     api_key = os.getenv("FRED_API_KEY")
     if not api_key:
@@ -65,12 +75,13 @@ def main():
         if not f:
             continue
         try:
-            rows = fetch_series(f["id"], f["units"], api_key)
+            rows = fetch_series(f, api_key)
         except Exception as e:
             print(f"{s['key']}: FRED fetch failed ({e}); skipping")
             continue
         db.replace_underlying(conn, s["key"], rows)
-        print(f"{s['key']}: {len(rows)} obs from FRED {f['id']} ({f['units']})")
+        src = f["id"] + (f"+{f['id2']}/2" if f.get("id2") else "")
+        print(f"{s['key']}: {len(rows)} obs from FRED {src} ({f['units']})")
         time.sleep(0.3)
     conn.close()
     print("FRED collection complete.")

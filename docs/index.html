@@ -77,7 +77,12 @@
   table.data th.l,table.data td.l{text-align:left}
   table.data td{padding:8px 12px;border-bottom:1px solid var(--grid);white-space:nowrap}
   table.data tr:hover td{background:var(--panel)}
-  .spark{display:block}
+  .spark{display:block;cursor:crosshair}
+  .bform{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 12px}
+  .bform select{min-width:150px}
+  table.data th.bh{text-align:right;white-space:normal;max-width:140px;vertical-align:bottom}
+  #tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--bg);font:12px/1.4 var(--mono);
+       padding:5px 8px;border-radius:6px;opacity:0;transition:opacity .08s;z-index:50;white-space:nowrap}
   .status{padding:40px 12px;text-align:center;color:var(--muted);font-size:14px}
   .foot{margin-top:24px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
 </style>
@@ -140,10 +145,14 @@
       <div class="seg" id="momentTerm"><button data-m="mean" aria-pressed="true">Mean</button><button data-m="median" aria-pressed="false">Median</button><button data-m="mode" aria-pressed="false">Mode</button></div>
     </div>
     <div class="ctl data-only hidden">
+      <label class="h">View</label>
+      <div class="seg" id="dataMode"><button data-v="summary" aria-pressed="true">Summary</button><button data-v="builder" aria-pressed="false">Custom columns</button></div>
+    </div>
+    <div class="ctl data-only dsum hidden">
       <label class="h">Series</label>
       <div class="checks" id="dataSeries"></div>
     </div>
-    <div class="ctl data-only hidden">
+    <div class="ctl data-only dsum hidden">
       <label class="h">Columns</label>
       <div class="checks" id="dataCols">
         <label><input type="checkbox" data-k="mean" checked>Mean</label>
@@ -153,7 +162,7 @@
         <label><input type="checkbox" data-k="vol" checked>Volume</label>
       </div>
     </div>
-    <div class="ctl data-only hidden">
+    <div class="ctl data-only dsum hidden">
       <label class="h">&nbsp;</label>
       <button id="dlCsv" class="dlbtn">Download CSV</button>
     </div>
@@ -188,9 +197,24 @@
   </section>
 
   <section id="panel-data" class="panel hidden">
-    <p id="cap-data" class="cap"></p>
-    <div class="tablewrap"><div id="dataTable"></div></div>
+    <div id="dataSummaryWrap">
+      <p id="cap-data" class="cap"></p>
+      <div class="tablewrap"><div id="dataTable"></div></div>
+    </div>
+    <div id="dataBuilderWrap" class="hidden">
+      <div class="bform">
+        <select id="bSeries"></select>
+        <select id="bContract"></select>
+        <select id="bMeasure"></select>
+        <button id="bAdd" class="dlbtn">Add column</button>
+        <button id="dlBuilder" class="dlbtn" style="margin-left:auto">Download CSV</button>
+      </div>
+      <div class="chips" id="bCols"></div>
+      <p id="cap-builder" class="cap"></p>
+      <div class="tablewrap"><div id="builderTable"></div></div>
+    </div>
   </section>
+  <div id="tip"></div>
 
   <div class="foot" id="foot"></div>
 </div>
@@ -233,7 +257,7 @@
     headline_cpi_releases_mom:"CPI release",headline_cpi_end_of_year:"CPI release",gdp_end_of_year:"GDP release",unemployment_releases:"jobs report"};
 
   const state={tab:"fwd",series:null,momentFwd:"mean",cadence:"1",momentTerm:"mean",contract:null,di:0,
-    minVol:0,lowVol:"carry",
+    minVol:0,lowVol:"carry",dataMode:"summary",builderCols:[],
     show:{mean:true,median:true,mode:true,band:true,vol:true},termSnaps:["latest","m1","m3"],
     dataSeries:{},cols:{mean:true,median:true,mode:true,sd:true,vol:true},data:{},dist:{}};
 
@@ -432,24 +456,55 @@
   }
 
   // ================= DATA TABLE (+ sparklines + CSV)
-  function sparkSVG(vals){
+  // ---- sparklines: Tufte start/end + min/max markers, with hover readout ----
+  let SPARK_ID=0; const sparkReg=new Map();
+  function sparkSVG(vals,ds){
     const pts=vals.map((v,i)=>({v,i})).filter(p=>p.v!=null);
-    const w=132,h=26,pad=2;
-    if(pts.length<2)return `<svg class="spark" width="${w}" height="${h}"></svg>`;
-    let lo=Infinity,hi=-Infinity;pts.forEach(p=>{if(p.v<lo)lo=p.v;if(p.v>hi)hi=p.v;});
-    const n=vals.length-1||1,X=i=>pad+(i/n)*(w-2*pad),Y=v=>hi===lo?h/2:pad+(1-(v-lo)/(hi-lo))*(h-2*pad);
+    const w=170,h=28,pad=3,rg=36,plotW=w-rg;
+    if(pts.length<2)return `<span style="color:var(--muted)">–</span>`;
+    let lo=Infinity,hi=-Infinity,loi=pts[0].i,hii=pts[0].i;
+    pts.forEach(p=>{if(p.v<lo){lo=p.v;loi=p.i;}if(p.v>hi){hi=p.v;hii=p.i;}});
+    const n=vals.length-1||1;
+    const X=i=>pad+(i/n)*(plotW-2*pad), Y=v=>hi===lo?h/2:pad+(1-(v-lo)/(hi-lo))*(h-2*pad);
     const dpath=pts.map((p,j)=>`${j?"L":"M"}${X(p.i).toFixed(1)},${Y(p.v).toFixed(1)}`).join("");
     const last=pts[pts.length-1];
-    return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`+
+    const sid="sp"+(SPARK_ID++); sparkReg.set(sid,{vals,ds,X,Y,w,pts});
+    const dot=(i,c,r)=>`<circle cx="${X(i).toFixed(1)}" cy="${Y(vals[i]).toFixed(1)}" r="${r}" fill="${c}"/>`;
+    return `<svg class="spark" data-sid="${sid}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`+
       `<path d="${dpath}" fill="none" stroke="var(--gray)" stroke-width="1"/>`+
-      `<circle cx="${X(last.i).toFixed(1)}" cy="${Y(last.v).toFixed(1)}" r="1.8" fill="var(--s2)"/></svg>`;
+      dot(hii,cssv("--s2"),2)+dot(loi,cssv("--s3"),2)+dot(last.i,cssv("--s1"),2.3)+
+      `<line class="sphov" x1="0" x2="0" y1="0" y2="${h}" stroke="${cssv("--ink")}" stroke-width="1" opacity="0"/>`+
+      `<circle class="sphd" r="2.6" fill="${cssv("--s1")}" opacity="0"/>`+
+      `<text x="${w-rg+5}" y="${(h/2+3.5).toFixed(1)}" font-size="10.5" font-family="var(--mono)" fill="${cssv("--ink")}">${fmt(last.v,2)}</text></svg>`;
   }
+  let lastSpark=null;
+  function sparkMove(e){
+    const svg=e.target.closest("svg.spark");
+    if(!svg){sparkLeave();return;}
+    if(lastSpark&&lastSpark!==svg)resetSpark(lastSpark); lastSpark=svg;
+    const reg=sparkReg.get(svg.dataset.sid); if(!reg)return;
+    const r=svg.getBoundingClientRect(), px=(e.clientX-r.left)*(reg.w/r.width);
+    let bi=reg.pts[0].i,bd=Infinity;
+    for(const p of reg.pts){const dx=Math.abs(reg.X(p.i)-px);if(dx<bd){bd=dx;bi=p.i;}}
+    const gx=reg.X(bi),gy=reg.Y(reg.vals[bi]);
+    const hov=svg.querySelector(".sphov"),hd=svg.querySelector(".sphd");
+    hov.setAttribute("x1",gx);hov.setAttribute("x2",gx);hov.setAttribute("opacity","0.35");
+    hd.setAttribute("cx",gx);hd.setAttribute("cy",gy);hd.setAttribute("opacity","1");
+    showTip(`${reg.ds?reg.ds[bi]:""}  ·  ${fmt(reg.vals[bi],2)}`,e.clientX,e.clientY);
+  }
+  function resetSpark(svg){const a=svg.querySelector(".sphov"),b=svg.querySelector(".sphd");if(a)a.setAttribute("opacity","0");if(b)b.setAttribute("opacity","0");}
+  function sparkLeave(){hideTip();if(lastSpark){resetSpark(lastSpark);lastSpark=null;}}
+  function showTip(html,x,y){const t=$("tip");t.innerHTML=html;t.style.opacity=1;
+    const r=t.getBoundingClientRect();let L=x+12,T=y+12;if(L+r.width>innerWidth-8)L=x-r.width-12;if(T+r.height>innerHeight-8)T=y-r.height-12;
+    t.style.left=L+"px";t.style.top=T+"px";}
+  function hideTip(){$("tip").style.opacity=0;}
   const COLS=[["mean","Mean"],["median","Median"],["mode","Mode"],["sd","s.d."],["vol","Volume"]];
   async function renderData(){
     const sel=Object.keys(state.dataSeries).filter(k=>state.dataSeries[k]);
     if(!sel.length){$("dataTable").innerHTML="";$("cap-data").textContent="Select one or more series to list their contracts.";return;}
     $("cap-data").textContent="Loading…";
     await Promise.all(sel.map(fetchSeries));
+    sparkReg.clear();
     const cols=COLS.filter(([k])=>state.cols[k]);
     let html=`<table class="data"><thead><tr><th class="l">Series</th><th class="l">Contract</th><th class="l">Trajectory (mean)</th>`+
       cols.map(([,l])=>`<th>${l}</th>`).join("")+`<th>Obs</th><th>Resolves</th></tr></thead><tbody>`;
@@ -457,12 +512,13 @@
     for(const k of sel){const d=state.data[k];if(!d)continue;const label=CFG.SERIES_META[k]?.label||k;
       for(const c of contractsSorted(d)){const o=d.byContract[c],i=o.t.length-1;
         const cell=key=>{if(key==="vol"){const tv=o.vol.some(v=>v!=null)?o.vol.reduce((a,v)=>a+(v||0),0):null;return commas(tv);}return fmt(o[key][i]);};
-        html+=`<tr><td class="l">${label}</td><td class="l">${pretty(c)}</td><td class="l">${sparkSVG(o.mean)}</td>`+
+        html+=`<tr><td class="l">${label}</td><td class="l">${pretty(c)}</td><td class="l">${sparkSVG(o.mean,o.ds)}</td>`+
           cols.map(([key])=>`<td>${cell(key)}</td>`).join("")+`<td>${o.t.length}</td><td>${o.expiry||"–"}</td></tr>`;
         nrows++;}}
     html+="</tbody></table>";
     $("dataTable").innerHTML=html;
-    $("cap-data").textContent=`${nrows} contract${nrows===1?"":"s"} across ${sel.length} series. Values shown are the latest trading day; the sparkline traces each contract's mean over its life. Download for the full daily history.`;
+    $("cap-data").innerHTML=`${nrows} contract${nrows===1?"":"s"} across ${sel.length} series. Latest-day values; the sparkline traces each contract's mean over its life — `+
+      `<span style="color:var(--s1)">●</span> latest, <span style="color:var(--s2)">●</span> max, <span style="color:var(--s3)">●</span> min; hover for date &amp; value. Download for the full daily history.`;
   }
   function downloadCSV(){
     const sel=Object.keys(state.dataSeries).filter(k=>state.dataSeries[k]);
@@ -482,9 +538,56 @@
     document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(a.href);
   }
 
+  // ---------- Data tab: custom-column builder (pivot by date) ----------
+  const MLABEL={mean:"mean",median:"median",mode:"mode",sd:"s.d.",vol:"volume"};
+  function colLabel(c){return `${CFG.SERIES_META[c.series]?.label||c.series} · ${pretty(c.contract)} · ${MLABEL[c.measure]}`;}
+  function colVal(c,i){const o=state.data[c.series]?.byContract[c.contract];if(!o)return null;return c.measure==="vol"?o.vol[i]:o[c.measure][i];}
+  function buildPivot(){
+    const cols=state.builderCols, dateSet=new Set();
+    const maps=cols.map(c=>{const o=state.data[c.series]?.byContract[c.contract],m={};
+      if(o)for(let i=0;i<o.ds.length;i++){const v=c.measure==="vol"?o.vol[i]:o[c.measure][i];if(v!=null){m[o.ds[i]]=v;dateSet.add(o.ds[i]);}}return m;});
+    const dates=[...dateSet].sort().reverse();
+    return {cols,maps,dates};
+  }
+  function renderBColChips(){
+    const box=$("bCols");box.innerHTML="";
+    state.builderCols.forEach((c,idx)=>{const b=document.createElement("button");b.className="chip";b.dataset.idx=idx;
+      b.innerHTML=`<span class="dot" style="background:${cssv(TS_COLORS[idx%4])}"></span>${colLabel(c)} <span aria-hidden="true" style="opacity:.55">×</span>`;box.appendChild(b);});
+  }
+  async function fillBContract(){
+    const k=$("bSeries").value; await fetchSeries(k);
+    const d=state.data[k],sel=$("bContract");sel.innerHTML="";
+    for(const c of contractsSorted(d)){const o=document.createElement("option");o.value=c;o.textContent=`${pretty(c)}  ·  ${d.byContract[c].t.length} d`;sel.appendChild(o);}
+  }
+  async function renderBuilder(){
+    renderBColChips();
+    if(!state.builderCols.length){$("builderTable").innerHTML="";$("cap-builder").textContent="Add one or more columns (series · contract · measure) to build an aligned time series.";return;}
+    $("cap-builder").textContent="Loading…";
+    await Promise.all([...new Set(state.builderCols.map(c=>c.series))].map(fetchSeries));
+    const {cols,maps,dates}=buildPivot();
+    let html=`<table class="data"><thead><tr><th class="l">Date</th>`+cols.map(c=>`<th class="bh">${colLabel(c)}</th>`).join("")+`</tr></thead><tbody>`;
+    for(const dt of dates){html+=`<tr><td class="l">${dt}</td>`+
+      maps.map((m,ci)=>`<td>${m[dt]!=null?fmt(m[dt],cols[ci].measure==="vol"?0:2):""}</td>`).join("")+`</tr>`;}
+    html+="</tbody></table>";
+    $("builderTable").innerHTML=html;
+    $("cap-builder").textContent=`${dates.length} date${dates.length===1?"":"s"} × ${cols.length} column${cols.length===1?"":"s"}, most recent first. Blank = no observation that day.`;
+  }
+  function downloadBuilder(){
+    if(!state.builderCols.length){alert("Add at least one column.");return;}
+    const {cols,maps,dates}=buildPivot();
+    const head=["date",...cols.map(c=>`${c.series}_${c.contract}_${c.measure}`)];
+    const lines=[head.join(",")];
+    for(const dt of dates)lines.push([dt,...maps.map(m=>m[dt]!=null?m[dt]:"")].join(","));
+    const blob=new Blob([lines.join("\n")],{type:"text/csv"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+    a.download=`macro_kalshi_columns_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(a.href);
+  }
+
   // ================= dispatch + load
+  function renderDataTab(){ return state.dataMode==="builder" ? renderBuilder() : renderData(); }
   function render(){if(!state.data[state.series]&&state.tab!=="data")return;
-    if(state.tab==="fwd")renderForward();else if(state.tab==="ts")renderTimeAll();else if(state.tab==="term")renderTerm();else renderData();}
+    if(state.tab==="fwd")renderForward();else if(state.tab==="ts")renderTimeAll();else if(state.tab==="term")renderTerm();else renderDataTab();}
   async function fetchSeries(k){
     if(state.data[k])return state.data[k];
     const [moments,realized]=await Promise.all([
@@ -510,7 +613,13 @@
     document.querySelectorAll(".panel").forEach(p=>p.classList.add("hidden"));
     $(`panel-${state.tab}`).classList.remove("hidden");
     if(state.tab==="ts"){try{await ensureDist(state.series,state.contract);}catch(e){console.error(e);}}
-    if(state.tab==="data"){await renderData();return;}
+    if(state.tab==="data"){
+      $("dataSummaryWrap").classList.toggle("hidden",state.dataMode!=="summary");
+      $("dataBuilderWrap").classList.toggle("hidden",state.dataMode!=="builder");
+      document.querySelectorAll(".dsum").forEach(e=>e.classList.toggle("hidden",state.dataMode!=="summary"));
+      if(state.dataMode==="builder"&&!$("bContract").options.length){try{await fillBContract();}catch(e){console.error(e);}}
+      await renderDataTab();return;
+    }
     render();
   }
   function selectTab(tab){state.tab=tab;
@@ -558,6 +667,21 @@
       if(!state.termSnaps.includes(id)&&state.termSnaps.length<4)state.termSnaps.push(id);e.target.value="";renderTerm();});
     $("dataSeries").addEventListener("change",e=>{const k=e.target.dataset.k;if(!k)return;state.dataSeries[k]=e.target.checked;renderData();});
     $("dataCols").addEventListener("change",e=>{const k=e.target.dataset.k;if(!k)return;state.cols[k]=e.target.checked;renderData();});
+    // sparkline hover
+    $("dataSummaryWrap").addEventListener("pointermove",sparkMove);
+    $("dataSummaryWrap").addEventListener("pointerleave",sparkLeave);
+    // column builder: populate selects
+    const bs=$("bSeries");for(const k in CFG.SERIES_META){const o=document.createElement("option");o.value=k;o.textContent=CFG.SERIES_META[k].label;bs.appendChild(o);}
+    const bm=$("bMeasure");for(const [k,l] of COLS){const o=document.createElement("option");o.value=k;o.textContent=l;bm.appendChild(o);}
+    $("dataMode").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+      [...$("dataMode").children].forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");
+      state.dataMode=b.dataset.v;showTab();});
+    $("bSeries").addEventListener("change",()=>{fillBContract().catch(err=>console.error(err));});
+    $("bAdd").addEventListener("click",()=>{const c={series:$("bSeries").value,contract:$("bContract").value,measure:$("bMeasure").value};
+      if(!c.contract)return; if(state.builderCols.some(x=>x.series===c.series&&x.contract===c.contract&&x.measure===c.measure))return;
+      state.builderCols.push(c);renderBuilder();});
+    $("bCols").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;state.builderCols.splice(+b.dataset.idx,1);renderBuilder();});
+    $("dlBuilder").addEventListener("click",downloadBuilder);
     $("dlCsv").addEventListener("click",downloadCSV);
     $("foot").innerHTML=`Forward curves: pale = past market-implied paths, orange = current, black = realized (FRED); cadence can step monthly/quarterly or land on each release/meeting (day-of or day-before). `+
       `Time series: one contract's moments over its life with the ±1 s.d. band and the day's probability distribution. `+

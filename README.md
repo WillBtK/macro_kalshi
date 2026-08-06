@@ -107,9 +107,10 @@ authors and is used here largely unchanged. To be precise about the boundary:
 
 **Expansion of the authors' ideas:**
 
-- **Three added series** — quarterly real GDP (`KXGDP`), nonfarm payrolls
-  (`KXPAYROLLS`), and headline CPI MoM (`KXCPI`) — wired through the same
-  methodology.
+- **Two added series** — quarterly real GDP (`KXGDP`, q/q SAAR) and nonfarm
+  payrolls (`KXPAYROLLS`) — series not on the authors' reference dashboard, wired
+  through the same methodology. (Headline CPI MoM, which the authors' own dashboard
+  already covers, is not counted here.)
 - **A first-release "settlement" overlay** — pulling ALFRED first-vintage values
   so the dashboard can show *where an expired contract actually settled* (the value
   as first reported, before revisions), alongside the revised FRED series.
@@ -537,7 +538,7 @@ This repository builds on the replication package by **Anthony M. Diercks and Ja
 Dean Katz** (Federal Reserve Board of Governors; Northwestern University, Kellogg
 School of Management). The distribution methodology, the original scraping pipeline,
 and the research idea are their work; this fork adds the database back-end, the
-dashboard, three series, and the settlement overlay ([§2](#2-relationship-to-the-original-work--credit--what-this-fork-adds)).
+dashboard, two added series, and the settlement overlay ([§2](#2-relationship-to-the-original-work--credit--what-this-fork-adds)).
 The upstream code is distributed under the MIT License. Academic software, provided
 **as is**, without warranty; verify data against official sources.
 

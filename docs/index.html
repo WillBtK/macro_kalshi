@@ -68,6 +68,7 @@
   .condp{color:var(--muted);font-weight:600}
   .rmbtn{border:1px solid var(--line);background:var(--bg);color:var(--muted);border-radius:7px;width:28px;height:30px;cursor:pointer;font-size:16px;line-height:1}
   .addcond{align-self:flex-start;font:13px var(--sans);padding:6px 12px;border:1px dashed var(--line);border-radius:7px;background:none;color:var(--accent);cursor:pointer}
+  .probnote{color:var(--muted);font-size:12px;margin:2px 0 0;max-width:840px}
   h2.sec{font-size:15px;margin:20px 2px 2px;font-weight:600}
   .sliderrow{display:flex;align-items:center;gap:12px;margin:8px 2px 2px}
   .sliderrow input[type=range]{flex:1;accent-color:var(--ink)}
@@ -345,6 +346,12 @@
   function contractsSorted(d){return Object.keys(d.byContract).sort((a,b)=>cmeta(b).key-cmeta(a).key||(d.byContract[b].expiry||"").localeCompare(d.byContract[a].expiry||""));}
   function defaultContract(d){const l=contractsSorted(d);
     return l.find(c=>!isExpired(c)&&d.byContract[c].t.length>=5)||l.find(c=>!isExpired(c))||l.find(c=>d.byContract[c].t.length>=5)||l[0];}
+  // contract in d whose target date is closest to refMs (for aligning joint conditions)
+  function contractClosestTo(d,refMs){
+    let best=null,bd=Infinity;
+    for(const c of Object.keys(d.byContract)){const x=contractDate(c);if(x==null)continue;const dd=Math.abs(x-refMs);if(dd<bd){bd=dd;best=c;}}
+    return best||defaultContract(d);
+  }
 
   // ================= FORWARD CURVES (grayscale history, accent present, black realized)
   // y-range fitted to points within the visible x-window (dynamic rescale on zoom/pan)
@@ -712,7 +719,8 @@
         `</div>`;
     };
     let html=conds.map(row).join("");
-    if(conds.length===1) html+=`<button class="addcond" data-act="add">+ add a second condition (joint probability)</button>`;
+    if(conds.length===1) html+=`<button class="addcond" data-act="add">+ add a second condition (product, assumes independence)</button>`;
+    html+=`<p class="probnote">Monthly-release markets (CPI, unemployment, payrolls) only list about a year of contracts ahead — for longer-horizon questions use the end-of-year / annual variants. A second variable defaults to the nearest matching target date.</p>`;
     $("probBuilder").innerHTML=html;
   }
   function renderProb(){
@@ -731,14 +739,21 @@
       const m1=maps[0], m2=maps[1], dates=Object.keys(m1).filter(d=>d in m2).sort();
       traces.push({type:"scatter",mode:"lines",x:dates.map(parseD),y:dates.map(d=>m1[d]),line:{color:cssv("--gray"),width:1,dash:"dot"},name:condLabel(conds[0]),hovertemplate:"%{y:.1f}%<extra></extra>"});
       traces.push({type:"scatter",mode:"lines",x:dates.map(parseD),y:dates.map(d=>m2[d]),line:{color:cssv("--gray"),width:1,dash:"dash"},name:condLabel(conds[1]),hovertemplate:"%{y:.1f}%<extra></extra>"});
-      traces.push({type:"scatter",mode:"lines",x:dates.map(parseD),y:dates.map(d=>m1[d]*m2[d]/100),line:{color:cssv("--s2"),width:2.6},name:"Joint (both)",hovertemplate:"%{x|%b %e, %Y}: %{y:.1f}%<extra></extra>"});
-      $("cap-prob").innerHTML=`Joint probability of <b>both</b> conditions over time — computed as P₁ × P₂, <b>assuming the two markets are independent</b>. Dotted &amp; dashed lines are the individual (marginal) probabilities.`;
+      traces.push({type:"scatter",mode:"lines",x:dates.map(parseD),y:dates.map(d=>m1[d]*m2[d]/100),line:{color:cssv("--s2"),width:2.6},name:"P₁ × P₂ (assumes independence)",hovertemplate:"%{x|%b %e, %Y}: %{y:.1f}%<extra></extra>"});
+      $("cap-prob").innerHTML=`<b>⚠️ This is not a true joint probability.</b> The bold line is simply the product P₁ × P₂, which assumes the two markets are <b>independent</b> (zero correlation between the outcomes). Real macro outcomes are correlated — growth and inflation especially — so read it as an independence-assuming approximation, not a genuine joint probability. Dotted &amp; dashed lines are the individual (marginal) probabilities.`;
     }
     Plotly.react("chart-prob",traces,base,CFG_PLOT);
   }
   async function showProb(){
     await Promise.all([...new Set(state.prob.conds.map(c=>c.series))].map(fetchSeries));
-    for(const c of state.prob.conds){const d=state.data[c.series];if(d&&(!c.contract||!d.byContract[c.contract]))c.contract=defaultContract(d);}
+    // default any missing contract; when another condition already has one, align
+    // to the same target date so a joint compares like-for-like horizons
+    for(const c of state.prob.conds){const d=state.data[c.series];if(!d)continue;
+      if(!c.contract||!d.byContract[c.contract]){
+        const other=state.prob.conds.find(o=>o!==c&&o.contract&&state.data[o.series]&&state.data[o.series].byContract[o.contract]);
+        const ref=other?contractDate(other.contract):null;
+        c.contract = (ref!=null) ? contractClosestTo(d,ref) : defaultContract(d);
+      }}
     for(const c of state.prob.conds){try{await ensureDist(c.series,c.contract);}catch(e){console.error(e);}}
     renderProbBuilder(); renderProb();
   }

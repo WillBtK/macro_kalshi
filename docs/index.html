@@ -117,6 +117,7 @@
     <button id="tab-term" role="tab" aria-selected="false">Term structure</button>
     <button id="tab-risk" role="tab" aria-selected="false">Uncertainty &amp; skew</button>
     <button id="tab-es"   role="tab" aria-selected="false">Event study</button>
+    <button id="tab-compare" role="tab" aria-selected="false">Compare</button>
     <button id="tab-prob" role="tab" aria-selected="false">Probabilities</button>
     <button id="tab-data" role="tab" aria-selected="false">Data</button>
   </div>
@@ -185,10 +186,6 @@
     <div class="ctl term-only hidden">
       <label class="h">Central tendency</label>
       <div class="seg" id="momentTerm"><button data-m="mean" aria-pressed="true">Mean</button><button data-m="median" aria-pressed="false">Median</button><button data-m="mode" aria-pressed="false">Mode</button></div>
-    </div>
-    <div class="ctl data-only hidden">
-      <label class="h">View</label>
-      <div class="seg" id="dataMode"><button data-v="summary" aria-pressed="true">Summary</button><button data-v="builder" aria-pressed="false">Custom columns</button></div>
     </div>
     <div class="ctl data-only dsum hidden">
       <label class="h">Series</label>
@@ -259,22 +256,26 @@
     <p id="cap-prob" class="cap"></p>
   </section>
 
+  <section id="panel-compare" class="panel hidden">
+    <div class="bform">
+      <select id="bSeries"></select>
+      <select id="bContract"></select>
+      <select id="bMeasure"></select>
+      <button id="bAdd" class="dlbtn">Add line</button>
+      <div class="seg" id="compareView" style="margin-left:auto"><button data-v="chart" aria-pressed="true">Chart</button><button data-v="table" aria-pressed="false">Table</button></div>
+      <div class="checks"><label><input type="checkbox" id="compareSepAxes">Separate y-axes</label></div>
+      <button id="dlBuilder" class="dlbtn">Download CSV</button>
+    </div>
+    <div class="chips" id="bCols"></div>
+    <div id="compareChartWrap"><div id="compareChart" class="chart tall"></div></div>
+    <div id="compareTableWrap" class="tablewrap hidden"><div id="builderTable"></div></div>
+    <p id="cap-builder" class="cap"></p>
+  </section>
+
   <section id="panel-data" class="panel hidden">
     <div id="dataSummaryWrap">
       <p id="cap-data" class="cap"></p>
       <div class="tablewrap"><div id="dataTable"></div></div>
-    </div>
-    <div id="dataBuilderWrap" class="hidden">
-      <div class="bform">
-        <select id="bSeries"></select>
-        <select id="bContract"></select>
-        <select id="bMeasure"></select>
-        <button id="bAdd" class="dlbtn">Add column</button>
-        <button id="dlBuilder" class="dlbtn" style="margin-left:auto">Download CSV</button>
-      </div>
-      <div class="chips" id="bCols"></div>
-      <p id="cap-builder" class="cap"></p>
-      <div class="tablewrap"><div id="builderTable"></div></div>
     </div>
   </section>
   <div id="tip"></div>
@@ -344,7 +345,7 @@
 
   const state={tab:"fwd",series:null,momentFwd:"mean",cadence:"1",momentTerm:"mean",contract:null,di:0,
     riskMeasure:"sd",riskView:"horizon",riskNout:[4],esMeasure:"mean",esView:"moves",
-    minVol:0,lowVol:"carry",dataMode:"summary",builderCols:[],tsShowExpired:false,dataShowExpired:false,
+    minVol:0,lowVol:"carry",compareView:"chart",compareSepAxes:false,builderCols:[],tsShowExpired:false,dataShowExpired:false,
     show:{mean:true,median:true,mode:true,band:true,vol:true},termSnaps:["latest","m1","m3"],
     dataSeries:{},cols:{mean:true,median:true,mode:true,sd:true,vol:true},data:{},dist:{},
     prob:{conds:[{series:"headline_cpi_end_of_year",contract:null,cmp:"gt",x:3,y:4}]}};
@@ -921,11 +922,44 @@
     const d=state.data[k],sel=$("bContract");sel.innerHTML="";
     for(const c of contractsSorted(d)){const o=document.createElement("option");o.value=c;o.textContent=`${pretty(c)}  ·  ${d.byContract[c].t.length} d`;sel.appendChild(o);}
   }
-  async function renderBuilder(){
+  const cmpAxisLabel=c=>(CFG.SERIES_META[c.series]||{}).axis||(CFG.SERIES_META[c.series]||{}).unit||"Value";
+  // Compare tab = the column builder rendered as an overlaid line chart (or the pivot table).
+  async function renderCompare(){
     renderBColChips();
-    if(!state.builderCols.length){$("builderTable").innerHTML="";$("cap-builder").textContent="Add one or more columns (series · contract · measure) to build an aligned time series.";return;}
+    $("compareChartWrap").classList.toggle("hidden",state.compareView!=="chart");
+    $("compareTableWrap").classList.toggle("hidden",state.compareView!=="table");
+    if(!state.builderCols.length){
+      $("builderTable").innerHTML="";
+      Plotly.react("compareChart",[],baseLayout({annotations:[{text:"Add lines to compare — e.g. Headline CPI (YoY) vs Fed Funds.",showarrow:false,font:{color:cssv("--muted")}}],xaxis:{visible:false},yaxis:{visible:false}}),CFG_PLOT);
+      $("cap-builder").textContent="Add one or more lines (series · contract · measure) to overlay them on a shared date axis. Use ‘Separate y-axes’ when they’re on different scales.";
+      return;
+    }
     $("cap-builder").textContent="Loading…";
     await Promise.all([...new Set(state.builderCols.map(c=>c.series))].map(fetchSeries));
+    if(state.compareView==="chart")renderCompareChart();else renderCompareTable();
+  }
+  function renderCompareChart(){
+    const cols=state.builderCols,grid=cssv("--grid"),traces=[];
+    const sep=state.compareSepAxes&&cols.length>1;
+    cols.forEach((c,idx)=>{
+      const o=state.data[c.series]?.byContract[c.contract];if(!o)return;
+      const col=cssv(TS_COLORS[idx%4]),yv=c.measure==="vol"?o.vol:o[c.measure];
+      const xs=[],ys=[];
+      for(let i=0;i<o.t.length;i++){if(yv[i]!=null){xs.push(o.t[i]);ys.push(yv[i]);}}
+      if(!xs.length)return;
+      traces.push({type:"scatter",mode:"lines",x:xs,y:ys,line:{color:col,width:2},yaxis:(sep&&idx>0)?"y2":"y",connectgaps:false,
+        hovertemplate:`${colLabel(c)}<br>%{x|%b %e, %Y}: %{y:.2f}<extra></extra>`});
+    });
+    const layout=baseLayout({margin:{t:10,r:sep?58:18,b:26,l:54},
+      xaxis:{type:"date",gridcolor:grid,showgrid:false,zeroline:false,showline:false,ticks:"outside",ticklen:4,tickcolor:grid},
+      yaxis:{gridcolor:grid,zeroline:false,showline:false,title:{text:sep?cmpAxisLabel(cols[0]):"",font:{size:11}}}});
+    if(sep)layout.yaxis2={overlaying:"y",side:"right",gridcolor:grid,zeroline:false,showline:false,title:{text:cmpAxisLabel(cols[1]),font:{size:11}}};
+    Plotly.react("compareChart",traces,layout,CFG_PLOT);
+    $("cap-builder").innerHTML=`${cols.length} line${cols.length===1?"":"s"} overlaid on a shared date axis`+
+      (sep?` — left axis = ${CFG.SERIES_META[cols[0].series]?.label||cols[0].series}, right axis = the rest`:``)+
+      `. Colours match the chips above; hover for values.`;
+  }
+  function renderCompareTable(){
     const {cols,maps,dates}=buildPivot();
     let html=`<table class="data"><thead><tr><th class="l">Date</th>`+cols.map(c=>`<th class="bh">${colLabel(c)}</th>`).join("")+`</tr></thead><tbody>`;
     for(const dt of dates){html+=`<tr><td class="l">${dt}</td>`+
@@ -1023,11 +1057,10 @@
   }
 
   // ================= dispatch + load
-  function renderDataTab(){ return state.dataMode==="builder" ? renderBuilder() : renderData(); }
-  function render(){if(!state.data[state.series]&&state.tab!=="data"&&state.tab!=="prob")return;
+  function render(){if(!state.data[state.series]&&state.tab!=="data"&&state.tab!=="prob"&&state.tab!=="compare")return;
     if(state.tab==="fwd")renderForward();else if(state.tab==="ts")renderTimeAll();else if(state.tab==="term")renderTerm();
-    else if(state.tab==="risk")renderRisk();else if(state.tab==="es")renderEventStudy();
-    else if(state.tab==="prob")renderProb();else renderDataTab();}
+    else if(state.tab==="risk")renderRisk();else if(state.tab==="es")renderEventStudy();else if(state.tab==="compare")renderCompare();
+    else if(state.tab==="prob")renderProb();else renderData();}
   async function fetchSeries(k){
     if(state.data[k])return state.data[k];
     const [moments,realized]=await Promise.all([
@@ -1071,26 +1104,29 @@
     }
   }
   function updateSpec(){const m=CFG.SERIES_META[state.series]||{},el=$("seriesSpec");
-    if(state.tab==="data"||state.tab==="prob"||!m.spec){el.style.display="none";return;}
+    if(state.tab==="data"||state.tab==="prob"||state.tab==="compare"||!m.spec){el.style.display="none";return;}
     el.style.display="block";el.innerHTML=`<b>Contract:</b> ${m.spec}`;}
   async function showTab(){
     document.querySelectorAll(".panel").forEach(p=>p.classList.add("hidden"));
     $(`panel-${state.tab}`).classList.remove("hidden");
     updateSpec();
     if(state.tab==="prob"){await showProb();return;}
-    if(state.tab==="ts"){try{await ensureDist(state.series,state.contract);}catch(e){console.error(e);}}
-    if(state.tab==="data"){
-      $("dataSummaryWrap").classList.toggle("hidden",state.dataMode!=="summary");
-      $("dataBuilderWrap").classList.toggle("hidden",state.dataMode!=="builder");
-      document.querySelectorAll(".dsum").forEach(e=>e.classList.toggle("hidden",state.dataMode!=="summary"));
-      if(state.dataMode==="builder"&&!$("bContract").options.length){try{await fillBContract();}catch(e){console.error(e);}}
-      await renderDataTab();return;
+    if(state.tab==="compare"){
+      if(!state.builderCols.length){
+        for(const k of ["headline_cpi_releases","fed_levels"]){
+          try{await fetchSeries(k);const d=state.data[k];if(d&&Object.keys(d.byContract).length){const c=defaultContract(d);if(c)state.builderCols.push({series:k,contract:c,measure:"mean"});}}catch(e){console.error(e);}
+        }
+      }
+      if(!$("bContract").options.length){try{await fillBContract();}catch(e){console.error(e);}}
+      await renderCompare();return;
     }
+    if(state.tab==="ts"){try{await ensureDist(state.series,state.contract);}catch(e){console.error(e);}}
+    if(state.tab==="data"){ await renderData(); return; }
     render();
   }
   function selectTab(tab){state.tab=tab;
-    for(const t of ["fwd","ts","term","risk","es","prob","data"])$(`tab-${t}`).setAttribute("aria-selected",t===tab);
-    document.querySelectorAll(".notdata").forEach(e=>e.classList.toggle("hidden",tab==="data"||tab==="prob"));
+    for(const t of ["fwd","ts","term","risk","es","compare","prob","data"])$(`tab-${t}`).setAttribute("aria-selected",t===tab);
+    document.querySelectorAll(".notdata").forEach(e=>e.classList.toggle("hidden",tab==="data"||tab==="prob"||tab==="compare"));
     document.querySelectorAll(".fwd-only").forEach(e=>e.classList.toggle("hidden",tab!=="fwd"));
     document.querySelectorAll(".ts-only").forEach(e=>e.classList.toggle("hidden",tab!=="ts"));
     document.querySelectorAll(".term-only").forEach(e=>e.classList.toggle("hidden",tab!=="term"));
@@ -1098,7 +1134,7 @@
     document.querySelectorAll(".es-only").forEach(e=>e.classList.toggle("hidden",tab!=="es"));
     document.querySelectorAll(".data-only").forEach(e=>e.classList.toggle("hidden",tab!=="data"));
     $("cadenceCtl").classList.toggle("hidden",!(tab==="fwd"||tab==="risk"));
-    if(state.data[state.series]||tab==="data"||tab==="prob")showTab();
+    if(state.data[state.series]||tab==="data"||tab==="prob"||tab==="compare")showTab();
   }
   function segWire(id,key,cast){$(id).addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
     [...$(id).children].forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");
@@ -1124,6 +1160,7 @@
     $("tab-term").addEventListener("click",()=>selectTab("term"));
     $("tab-risk").addEventListener("click",()=>selectTab("risk"));
     $("tab-es").addEventListener("click",()=>selectTab("es"));
+    $("tab-compare").addEventListener("click",()=>selectTab("compare"));
     $("tab-prob").addEventListener("click",()=>selectTab("prob"));
     $("tab-data").addEventListener("click",()=>selectTab("data"));
     $("probBuilder").addEventListener("change",e=>{const row=e.target.closest(".condrow");if(!row)return;
@@ -1175,20 +1212,22 @@
     // column builder: populate selects
     const bs=$("bSeries");for(const k in CFG.SERIES_META){const o=document.createElement("option");o.value=k;o.textContent=CFG.SERIES_META[k].label;bs.appendChild(o);}
     const bm=$("bMeasure");for(const [k,l] of COLS){const o=document.createElement("option");o.value=k;o.textContent=l;bm.appendChild(o);}
-    $("dataMode").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
-      [...$("dataMode").children].forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");
-      state.dataMode=b.dataset.v;showTab();});
+    $("compareView").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+      [...$("compareView").children].forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");
+      state.compareView=b.dataset.v;renderCompare();});
+    $("compareSepAxes").addEventListener("change",e=>{state.compareSepAxes=e.target.checked;renderCompare();});
     $("bSeries").addEventListener("change",()=>{fillBContract().catch(err=>console.error(err));});
     $("bAdd").addEventListener("click",()=>{const c={series:$("bSeries").value,contract:$("bContract").value,measure:$("bMeasure").value};
       if(!c.contract)return; if(state.builderCols.some(x=>x.series===c.series&&x.contract===c.contract&&x.measure===c.measure))return;
-      state.builderCols.push(c);renderBuilder();});
-    $("bCols").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;state.builderCols.splice(+b.dataset.idx,1);renderBuilder();});
+      state.builderCols.push(c);renderCompare();});
+    $("bCols").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;state.builderCols.splice(+b.dataset.idx,1);renderCompare();});
     $("dlBuilder").addEventListener("click",downloadBuilder);
     $("dlCsv").addEventListener("click",downloadCSV);
     $("foot").innerHTML=`Forward curves: grey = past market-implied paths, orange = current (always the latest observation), black = realized (FRED); cadence can step monthly/quarterly or land on each release/meeting (day-of or day-before). `+
       `Time series: one contract's moments over its life with the ±1 s.d. band and the day's probability distribution. `+
       `Term structure: up to four as-of dates. Uncertainty &amp; skew: the implied standard deviation and asymmetry of the distribution, by horizon or over time. `+
       `Event study: how the distribution reacts to each release/meeting — per-event moves of the nearest surviving contract, or every contract aligned to its own resolution (no external shock data; events are the contracts' own settlement dates). `+
+      `Compare: overlay several series/contracts/measures on one date axis (e.g. CPI vs Fed Funds), with an optional second y-axis; view as a chart or a table and download the aligned CSV. `+
       `Data: browse contracts with sparklines and download the full daily history as CSV. `+
       `“Min contracts/day” sets a liquidity floor: thin days are excluded from the curves and drawn dashed (held or as-traded) on the time series. `+
       `Contract target dates are the nominal period mid-month; as-of matching uses the nearest qualifying observation within ~6 weeks.`;

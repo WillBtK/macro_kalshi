@@ -29,5 +29,7 @@ window.MK_CONFIG = {
       spec: "Resolves to the BEA advance estimate of annual real GDP growth for the labelled year (annual-average basis: prior-year annual level to current-year annual level, not Q4/Q4). The realized line uses the latest revised BEA annual figure."},
     unemployment_releases:     {label: "Unemployment rate",        unit: "%",   axis: "Rate (%)",
       spec: "Resolves to the U-3 unemployment rate for the labelled release month."},
+    nonfarm_payrolls:          {label: "Nonfarm payrolls (m/m)",   unit: "k",   axis: "Jobs added (thousands, m/m)",
+      spec: "Resolves to the monthly change in total nonfarm payroll employment for the labelled release month. Kalshi lists strikes in absolute jobs; values here are in thousands (e.g. 150 = +150,000) to match the FRED realized change."},
   },
 };

@@ -52,6 +52,21 @@ extract_distributions(input_file = 'data/trade_level_data/trade_level_data_unemp
                       days_before_horizon = 30,
                       moment_adjustment = .1)
 
+# Nonfarm payrolls (KXPAYROLLS): threshold market, strikes listed in absolute
+# jobs (e.g. -T150000). strike_scale = 0.001 puts moments in THOUSANDS of jobs
+# so they line up with the FRED realised change (PAYEMS chg, also thousands).
+# Wrapped so a new-series hiccup never kills the established series' conversion.
+tryCatch(
+  extract_distributions(input_file = 'data/trade_level_data/trade_level_data_nonfarm_payrolls.csv',
+                        output_distributions = 'data/daily_distribution_data/daily_distributions_nonfarm_payrolls.csv',
+                        output_moments = 'data/daily_moments_data/daily_moments_nonfarm_payrolls.csv',
+                        output_wide = 'data/daily_distribution_data/wide/daily_distributions_nonfarm_payrolls.csv',
+                        strike_int = 50,
+                        days_before_horizon = 45,
+                        moment_adjustment = 25,
+                        strike_scale = 0.001),
+  error = function(e) message("nonfarm_payrolls conversion failed: ", conditionMessage(e)))
+
 
 
 ############ Trade-level Data-- Annual ############

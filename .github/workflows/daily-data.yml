@@ -107,10 +107,22 @@ jobs:
 
       # -----------------------
       # Keep the schedule alive: GitHub disables scheduled workflows after 60
-      # days with no repo commits, and our runs only write to Postgres. This
-      # action pushes a tiny dummy commit ONLY when the repo nears that cutoff
-      # (~45 days idle), so it re-arms the cron without spamming history.
+      # days with no repo commits, and our runs only write to Postgres. Push a
+      # tiny empty commit ONLY when the repo nears that cutoff (~50 days idle),
+      # so the cron is re-armed without spamming history. Uses plain git (no
+      # third-party action, which this repo's Actions policy blocks).
       # -----------------------
       - name: Keep scheduled workflow alive
         if: always()
-        uses: gautamkrishnar/keepalive-workflow@v2
+        run: |
+          last=$(git log -1 --format=%ct)
+          idle_days=$(( ( $(date +%s) - last ) / 86400 ))
+          echo "Last commit was ${idle_days} day(s) ago."
+          if [ "$idle_days" -ge 50 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "chore: keepalive (re-arm scheduled workflow)"
+            git push
+          else
+            echo "No keepalive commit needed."
+          fi

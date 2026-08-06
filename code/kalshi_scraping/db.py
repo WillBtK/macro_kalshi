@@ -69,6 +69,18 @@ CREATE TABLE IF NOT EXISTS underlying_history (
     PRIMARY KEY (series, date)
 );
 
+-- First-release ("as first reported") values from ALFRED, so we can show where
+-- an expired contract actually settled without later revisions. `date` is the
+-- reference period; `released` is the date that value was first published
+-- (ALFRED realtime_start), used to match a contract to the print it settled on.
+CREATE TABLE IF NOT EXISTS underlying_first_release (
+    series   TEXT NOT NULL,
+    date     DATE NOT NULL,
+    value    DOUBLE PRECISION,
+    released DATE,
+    PRIMARY KEY (series, date)
+);
+
 -- Per-market metadata (the true close/expiration times from Kalshi), so the R
 -- conversion can use real contract expiries instead of inferring them from the
 -- last trade date. Private (not exposed to the anon role).
@@ -90,6 +102,7 @@ BEGIN
   EXECUTE 'ALTER TABLE daily_moments ENABLE ROW LEVEL SECURITY';
   EXECUTE 'ALTER TABLE daily_distributions ENABLE ROW LEVEL SECURITY';
   EXECUTE 'ALTER TABLE underlying_history ENABLE ROW LEVEL SECURITY';
+  EXECUTE 'ALTER TABLE underlying_first_release ENABLE ROW LEVEL SECURITY';
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
@@ -104,12 +117,15 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='underlying_history' AND policyname='public_read') THEN
     EXECUTE 'CREATE POLICY public_read ON underlying_history FOR SELECT USING (true)';
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='underlying_first_release' AND policyname='public_read') THEN
+    EXECUTE 'CREATE POLICY public_read ON underlying_first_release FOR SELECT USING (true)';
+  END IF;
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
 DO $$
 BEGIN
-  EXECUTE 'GRANT SELECT ON daily_moments, daily_distributions, underlying_history TO anon, authenticated';
+  EXECUTE 'GRANT SELECT ON daily_moments, daily_distributions, underlying_history, underlying_first_release TO anon, authenticated';
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
@@ -297,6 +313,18 @@ def replace_underlying(conn, series, rows):
             execute_values(cur, """
                 INSERT INTO underlying_history (series, date, value) VALUES %s
             """, [(series, d, v) for d, v in rows], page_size=2000)
+    conn.commit()
+
+
+def replace_first_release(conn, series, rows):
+    """rows: list of (date, value, released). Replaces the first-release history
+    for a series (the value as first reported, plus its release date)."""
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM underlying_first_release WHERE series = %s", (series,))
+        if rows:
+            execute_values(cur, """
+                INSERT INTO underlying_first_release (series, date, value, released) VALUES %s
+            """, [(series, d, v, rel) for d, v, rel in rows], page_size=2000)
     conn.commit()
 
 

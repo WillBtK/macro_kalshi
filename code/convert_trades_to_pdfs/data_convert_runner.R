@@ -67,6 +67,21 @@ tryCatch(
                         strike_scale = 0.001),
   error = function(e) message("nonfarm_payrolls conversion failed: ", conditionMessage(e)))
 
+# Quarterly real GDP (KXGDP): threshold market on the quarter's SAAR q/q growth
+# (KXGDP-YYMONDD-T<pct>), so the CDF converter with a 0.5-pp strike grid. Values
+# are already in percent, so no strike scaling. days_before_horizon kept wide so
+# far-dated quarters retain enough history for the horizon / constant-maturity
+# views. Wrapped so a hiccup never breaks the established series.
+tryCatch(
+  extract_distributions(input_file = 'data/trade_level_data/trade_level_data_gdp_quarterly.csv',
+                        output_distributions = 'data/daily_distribution_data/daily_distributions_gdp_quarterly.csv',
+                        output_moments = 'data/daily_moments_data/daily_moments_gdp_quarterly.csv',
+                        output_wide = 'data/daily_distribution_data/wide/daily_distributions_gdp_quarterly.csv',
+                        strike_int = 0.5,
+                        days_before_horizon = 400,
+                        moment_adjustment = 0.25),
+  error = function(e) message("gdp_quarterly conversion failed: ", conditionMessage(e)))
+
 
 
 ############ Trade-level Data-- Annual ############

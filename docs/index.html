@@ -288,7 +288,16 @@
 
   const MONARR=["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
   const MON={JAN:"January",FEB:"February",MAR:"March",APR:"April",MAY:"May",JUN:"June",JUL:"July",AUG:"August",SEP:"September",OCT:"October",NOV:"November",DEC:"December"};
-  function cmeta(c){let m=c.match(/-(\d{2})([A-Z]{3})$/);
+  // Quarterly GDP tickers are dated by the release/quarter-end date, not the
+  // quarter: map that month → [quarter, year-offset]. Handles both the current
+  // release-date naming (JAN→Q4 prior yr, APR→Q1, JUL→Q2, OCT→Q3) and the legacy
+  // quarter-end naming (MAR→Q1, JUN→Q2, SEP→Q3, DEC→Q4).
+  const GDPQ={JAN:[4,-1],DEC:[4,0],MAR:[1,0],APR:[1,0],JUN:[2,0],JUL:[2,0],SEP:[3,0],OCT:[3,0]};
+  function cmeta(c){
+    let g=c.match(/^(?:KX)?GDP-(\d{2})([A-Z]{3})\d{2}$/);
+    if(g&&GDPQ[g[2]]){const[q,off]=GDPQ[g[2]],y=2000+ +g[1]+off,mid=[1,4,7,10][q-1];
+      return{label:`Q${q} ${y}`,key:y*12+mid,annual:false,quarter:true};}
+    let m=c.match(/-(\d{2})([A-Z]{3})$/);
     if(m&&MON[m[2]]!==undefined){const y=2000+ +m[1];return{label:`${MON[m[2]]} ${y}`,key:y*12+MONARR.indexOf(m[2]),annual:false};}
     m=c.match(/-(\d{4})$/);if(m)return{label:`${+m[1]}`,key:+m[1]*12,annual:true};
     m=c.match(/-(\d{2})$/);if(m){const y=2000+ +m[1];return{label:`${y}`,key:y*12,annual:true};}
@@ -298,7 +307,9 @@
   // contracts): a monthly contract expires once its target month is past; an
   // annual contract once its target year is past.
   const _now=new Date(), NOW_MK=_now.getUTCFullYear()*12+_now.getUTCMonth(), NOW_Y=_now.getUTCFullYear();
-  function isExpired(c){const m=cmeta(c);if(m.key<0)return false;return m.annual?(m.key/12<NOW_Y):(m.key<NOW_MK);}
+  // key<0 = ticker we couldn't place in time (e.g. a malformed legacy contract);
+  // treat as expired so it's hidden unless "include expired" is ticked.
+  function isExpired(c){const m=cmeta(c);if(m.key<0)return true;return m.annual?(m.key/12<NOW_Y):(m.key<NOW_MK);}
   const pretty=c=>cmeta(c).label;
   function contractDate(c){const k=cmeta(c).key;if(k<0)return null;return Date.UTC(Math.floor(k/12),k%12,15);}
   const parseD=s=>{const[y,m,d]=s.split("-").map(Number);return Date.UTC(y,m-1,d);};
@@ -310,12 +321,12 @@
   const TS_ORDER=["latest","m1","m3","m6","e2025","e2024"], TS_COLORS=["--s1","--s2","--s3","--s4"];
   const EVENT_NAME={fed_levels:"FOMC meeting",headline_cpi_releases:"CPI release",core_cpi_releases:"CPI release",
     headline_cpi_releases_mom:"CPI release",headline_cpi_end_of_year:"CPI release",gdp_end_of_year:"GDP release",
-    unemployment_releases:"jobs report",nonfarm_payrolls:"jobs report"};
+    unemployment_releases:"jobs report",nonfarm_payrolls:"jobs report",gdp_quarterly:"GDP release"};
   // latest realized-underlying tile: label + how to date-stamp it
   const REALIZED_LABEL={fed_levels:"Fed Funds target, today",headline_cpi_releases:"CPI YoY, latest",core_cpi_releases:"Core CPI YoY, latest",
     headline_cpi_releases_mom:"CPI MoM, latest",headline_cpi_end_of_year:"CPI YoY, latest",gdp_end_of_year:"Real GDP, latest yr",
-    unemployment_releases:"Unemployment, latest",nonfarm_payrolls:"Payrolls Δ, latest"};
-  const REALIZED_FREQ={fed_levels:"day",gdp_end_of_year:"year"}; // others: month
+    unemployment_releases:"Unemployment, latest",nonfarm_payrolls:"Payrolls Δ, latest",gdp_quarterly:"Real GDP q/q, latest"};
+  const REALIZED_FREQ={fed_levels:"day",gdp_end_of_year:"year",gdp_quarterly:"quarter"}; // others: month
 
   const state={tab:"fwd",series:null,momentFwd:"mean",cadence:"1",momentTerm:"mean",contract:null,di:0,
     riskMeasure:"sd",riskView:"horizon",riskNout:[4],
@@ -384,7 +395,12 @@
     let snaps=[];
     if(cadence==="evt0"||cadence==="evt1"){
       const shift=cadence==="evt1"?-DAY:0;
-      snaps=(d.eventDates||[]).filter(t=>t<=d.momMax+DAY && t>=d.momMin-45*DAY).map(t=>t+shift).sort((a,b)=>b-a);
+      // Greys = the curve as-of each past event; the current (orange) curve is
+      // ALWAYS the latest observation, not the last event date. So put momMax
+      // first and use only event dates strictly before it as the history.
+      const evs=(d.eventDates||[]).filter(t=>t<=d.momMax+DAY && t>=d.momMin-45*DAY)
+                  .map(t=>t+shift).filter(t=>t<d.momMax-2*DAY).sort((a,b)=>b-a);
+      snaps=[d.momMax, ...evs];
     } else {
       const step=+cadence||1; let t=d.momMax; while(t>=d.momMin-1){snaps.push(t);t=addMonths(t,-step);if(snaps.length>72)break;}
     }
@@ -398,12 +414,16 @@
   }
   function renderForward(){
     const d=state.data[state.series],meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"};
-    const curves=forwardCurves(d,state.momentFwd,state.cadence,state.minVol),traces=[],n=curves.length;
+    const curves=forwardCurves(d,state.momentFwd,state.cadence,state.minVol),traces=[];
+    // Uniform line weight for all snapshots; the current curve is set apart by
+    // colour (orange) + markers, not by weight. Historical curves are a single
+    // legible grey (no age fade — the pale-with-age styling made older lines
+    // barely visible).
     curves.forEach((cur,i)=>{
-      const isLatest=i===0,age=n<=1?0:i/(n-1);
-      const color=isLatest?cssv("--s2"):`rgba(138,147,160,${Math.max(0.10,0.42*(1-age))})`;
+      const isLatest=i===0;
+      const color=isLatest?cssv("--s2"):"rgba(138,147,160,0.5)";
       traces.push({type:"scatter",mode:isLatest?"lines+markers":"lines",x:cur.pts.map(p=>p.x),y:cur.pts.map(p=>p.v),
-        line:{color,width:isLatest?2.4:1},marker:{size:isLatest?4:1,color},
+        line:{color,width:2},marker:{size:isLatest?4:1,color},
         hovertemplate:`as of ${isoDay(cur.T)}<br>%{x|%b %Y}: %{y:.2f}<extra></extra>`});
     });
     if(d.realized.length)traces.push({type:"scatter",mode:"lines",x:d.realized.map(p=>p.t),y:d.realized.map(p=>p.v),
@@ -431,13 +451,26 @@
     const ev=EVENT_NAME[state.series]||"release";
     const cadTxt=state.cadence==="evt0"?`as of each ${ev}`:state.cadence==="evt1"?`as of the day before each ${ev}`:
       `priced ${state.cadence==="3"?"quarterly":"monthly"} back to ${isoDay(d.momMin).slice(0,7)}`;
-    $("cap-fwd").textContent=`${meta.label}. Each pale line is a market-implied path (${state.momentFwd}) across contract dates, ${cadTxt}; `+
+    $("cap-fwd").textContent=`${meta.label}. Each grey line is a market-implied path (${state.momentFwd}) across contract dates, ${cadTxt}; `+
       `orange = current curve, black = realized (FRED).`+(state.minVol>0?` Days under ${state.minVol} contracts excluded.`:``);
   }
 
+  // Settlement value for an EXPIRED contract = the first-release print released
+  // nearest the contract's close (recent expiries only, ~2 years). Matches by
+  // release date, so it's agnostic to how each series labels its months.
+  function settleValue(d,contract){
+    if(!isExpired(contract))return null;
+    const o=d.byContract[contract]; if(!o||!o.expiry)return null;
+    const exp=parseD(o.expiry); if((+_now)-exp>760*DAY)return null;
+    let best=null,bd=Infinity;
+    for(const r of (d.firstRel||[])){const key=r.rel!=null?r.rel:r.t;const dd=Math.abs(key-exp);if(dd<bd){bd=dd;best=r;}}
+    return (best&&bd<120*DAY)?best.v:null;
+  }
   // ================= TIME SERIES (stacked volume strip, direct labels)
   function tsShapes(o){const s=[];
     if(o.expiry){const ex=parseD(o.expiry);s.push({type:"line",x0:ex,x1:ex,yref:"paper",y0:0,y1:1,line:{color:cssv("--muted"),width:1,dash:"dot"}});}
+    const sv=settleValue(state.data[state.series],state.contract);
+    if(sv!=null)s.push({type:"line",xref:"paper",x0:0,x1:1,y0:sv,y1:sv,layer:"below",line:{color:cssv("--ink"),width:1.4,dash:"dot"}});
     const mx=o.t[state.di];s.push({type:"line",x0:mx,x1:mx,yref:"paper",y0:0,y1:1,line:{color:cssv("--ink"),width:1}});
     return s;}
   function renderTimeLine(){
@@ -488,6 +521,9 @@
       const over=labels[labels.length-1].y-yhi; if(over>0)for(const L of labels)L.y-=over;
     }
     for(const L of labels)anns.push(endLabel(L.x,L.y,L.text,L.color));
+    const settle=settleValue(d,state.contract);
+    if(settle!=null)anns.push({x:1,xref:"paper",y:settle,yref:"y",xanchor:"right",yanchor:"bottom",
+      text:`settled ${fmt(settle,2)}${meta.unit||""}`,showarrow:false,font:{size:11,color:cssv("--ink")},bgcolor:cssv("--bg")});
     Plotly.react("chart-ts",traces,baseLayout({annotations:anns,hovermode:"x unified",shapes:tsShapes(o),bargap:0.3,margin:{t:10,r:78,b:24,l:52},
       xaxis:{type:"date",gridcolor:grid,showgrid:false,zeroline:false,showline:false,ticks:"outside",ticklen:4,tickcolor:grid,anchor:hasVol?"y2":"y"},
       yaxis:{title:{text:meta.axis,font:{size:11.5}},gridcolor:grid,zeroline:false,showline:false,domain:hasVol?[0.2,1]:[0,1]},
@@ -495,6 +531,7 @@
     const div=$("chart-ts");
     if(!div._hoverBound){div._hoverBound=true;div.on("plotly_hover",e=>{const p=e.points&&e.points.find(pp=>pp.pointIndex!=null);if(p)setDay(p.pointIndex,true);});}
     $("cap-ts").textContent=`${meta.label} — ${pretty(state.contract)}. Mean/median/mode over the contract's trading life; shaded band is ±1 s.d.`+
+      (settle!=null?` Dotted horizontal line = where it actually settled (value as first reported, before revisions).`:``)+
       (anyLow?` Dashed = days under ${mv} contracts (${carry?"held at last liquid value":"shown as traded"}); their volume bars are marked orange.`:``);
   }
   function realizedDate(ds,series){const f=REALIZED_FREQ[series]||"month";
@@ -900,7 +937,14 @@
     let expiryRows=[];
     try{ expiryRows=await pgFetch("contract_expiry",`select=contract_preamble,expiry&series=eq.${k}`); }
     catch(e){ console.warn("contract_expiry unavailable:",e.message); }
-    state.data[k]=prep(moments,realized,expiryRows);return state.data[k];
+    // first-release (as-first-reported) values for the settlement line; optional
+    let frRows=[];
+    try{ frRows=await pgFetch("underlying_first_release",`select=date,value,released&series=eq.${k}&order=released`); }
+    catch(e){ console.warn("first_release unavailable:",e.message); }
+    const d=prep(moments,realized,expiryRows);
+    d.firstRel=frRows.map(r=>({rel:r.released?parseD(r.released):null,t:parseD(r.date),v:r.value}))
+                     .filter(r=>r.v!=null).sort((a,b)=>((a.rel||a.t)-(b.rel||b.t)));
+    state.data[k]=d;return d;
   }
   async function ensureDist(k,c){state.dist[k]=state.dist[k]||{};if(state.dist[k][c])return;
     const rows=await pgFetch("daily_distributions",`select=date,strike,probability&series=eq.${k}&contract_preamble=eq.${encodeURIComponent(c)}&order=date,strike`);
@@ -1035,7 +1079,7 @@
     $("bCols").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;state.builderCols.splice(+b.dataset.idx,1);renderBuilder();});
     $("dlBuilder").addEventListener("click",downloadBuilder);
     $("dlCsv").addEventListener("click",downloadCSV);
-    $("foot").innerHTML=`Forward curves: pale = past market-implied paths, orange = current, black = realized (FRED); cadence can step monthly/quarterly or land on each release/meeting (day-of or day-before). `+
+    $("foot").innerHTML=`Forward curves: grey = past market-implied paths, orange = current (always the latest observation), black = realized (FRED); cadence can step monthly/quarterly or land on each release/meeting (day-of or day-before). `+
       `Time series: one contract's moments over its life with the ±1 s.d. band and the day's probability distribution. `+
       `Term structure: up to four as-of dates. Uncertainty &amp; skew: the implied standard deviation and asymmetry of the distribution, by horizon or over time. `+
       `Data: browse contracts with sparklines and download the full daily history as CSV. `+

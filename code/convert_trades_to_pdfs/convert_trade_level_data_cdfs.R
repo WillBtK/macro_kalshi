@@ -85,9 +85,13 @@ read_data <- function(input_file) {
   df <- df %>%
     mutate(
       contract_preamble = str_extract(ticker, "^[^-]+(?:-[^-]+)*"),
-      contract_preamble = str_replace(contract_preamble, "-T\\d+\\.?\\d*$", ""),
+      # Strip the strike suffix. Handles positive (-T2.5), literal-negative
+      # (-T-100000, payrolls) and N-prefixed-negative (-TN0.5, quarterly GDP)
+      # encodings so negative-strike rows aren't split into phantom contracts.
+      contract_preamble = str_replace(contract_preamble, "-T-?N?\\d+\\.?\\d*$", ""),
       contract_preamble = ifelse(contract_preamble == 'FED-22JULY', 'FED-22JUL', contract_preamble),
-      strike = as.numeric(str_extract(ticker, "(?<=-T)\\d+\\.?\\d*"))
+      # Strike: same three encodings; an 'N' prefix means negative.
+      strike = as.numeric(str_replace(str_extract(ticker, "(?<=-T)-?N?\\d+\\.?\\d*$"), "^N", "-"))
     ) %>%
     arrange(contract_preamble, strike, date)
   
@@ -506,11 +510,15 @@ get_moments <- function(df, moment_adjustment) {
 #' order of imposing monotonicity (see appendix A for more information)
 #' @return No return value. Writes processed data to specified output files.
 extract_distributions <- function(input_file, output_distributions, output_moments, output_wide, strike_int,
-                                  days_before_horizon, moment_adjustment=0, 
+                                  days_before_horizon, moment_adjustment=0,
                                   convert_to_daily_method = 'last',
-                                  clean_data_method = 'middle-out') {
-  
+                                  clean_data_method = 'middle-out',
+                                  strike_scale = 1) {
+
   df <- read_data(input_file = input_file)
+  # Rescale strikes (e.g. payrolls list strikes in absolute jobs; scale to
+  # thousands so moments match the FRED realised series and read cleanly).
+  if (strike_scale != 1) df <- df %>% mutate(strike = strike * strike_scale)
   df <- convert_to_daily(df, method = convert_to_daily_method)
   df <- fill_dataless_days(df, days_before_horizon)
   df <- clean_data(df, type = clean_data_method)

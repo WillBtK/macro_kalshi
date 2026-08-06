@@ -305,10 +305,12 @@
   const DAY=864e5, cssv=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
   const TS_ORDER=["latest","m1","m3","m6","e2025","e2024"], TS_COLORS=["--s1","--s2","--s3","--s4"];
   const EVENT_NAME={fed_levels:"FOMC meeting",headline_cpi_releases:"CPI release",core_cpi_releases:"CPI release",
-    headline_cpi_releases_mom:"CPI release",headline_cpi_end_of_year:"CPI release",gdp_end_of_year:"GDP release",unemployment_releases:"jobs report"};
+    headline_cpi_releases_mom:"CPI release",headline_cpi_end_of_year:"CPI release",gdp_end_of_year:"GDP release",
+    unemployment_releases:"jobs report",nonfarm_payrolls:"jobs report"};
   // latest realized-underlying tile: label + how to date-stamp it
   const REALIZED_LABEL={fed_levels:"Fed Funds target, today",headline_cpi_releases:"CPI YoY, latest",core_cpi_releases:"Core CPI YoY, latest",
-    headline_cpi_releases_mom:"CPI MoM, latest",headline_cpi_end_of_year:"CPI YoY, latest",gdp_end_of_year:"Real GDP, latest yr",unemployment_releases:"Unemployment, latest"};
+    headline_cpi_releases_mom:"CPI MoM, latest",headline_cpi_end_of_year:"CPI YoY, latest",gdp_end_of_year:"Real GDP, latest yr",
+    unemployment_releases:"Unemployment, latest",nonfarm_payrolls:"Payrolls Δ, latest"};
   const REALIZED_FREQ={fed_levels:"day",gdp_end_of_year:"year"}; // others: month
 
   const state={tab:"fwd",series:null,momentFwd:"mean",cadence:"1",momentTerm:"mean",contract:null,di:0,

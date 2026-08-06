@@ -7,113 +7,117 @@
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 <style>
   :root{
-    --bg:#ffffff; --panel:#f7f8fa; --line:#e4e7eb; --ink:#14181f; --ink2:#404855;
+    --bg:#ffffff; --panel:#f7f8fa; --line:#e7e9ec; --grid:#f0f1f3; --ink:#14181f; --ink2:#404855;
     --muted:#6b7480; --accent:#0b5ed7; --realized:#14181f;
-    --s1:#0b5ed7; --s2:#e4572e; --s3:#17a398; --s4:#7c4dff;
+    --s1:#2b6cb0; --s2:#c05621; --s3:#2c7a6b; --s4:#6b46c1;
+    --gray:#8a93a0;
     --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   @media (prefers-color-scheme:dark){
-    :root{--bg:#0f1115;--panel:#161a20;--line:#272c34;--ink:#eef1f5;--ink2:#c3cad4;
+    :root{--bg:#0f1115;--panel:#161a20;--line:#272c34;--grid:#1c2027;--ink:#eef1f5;--ink2:#c3cad4;
           --muted:#8b95a1;--accent:#5b9bff;--realized:#eef1f5;
-          --s1:#5b9bff;--s2:#ff8a5b;--s3:#3ec6b6;--s4:#a78bfa;}
+          --s1:#63a4ff;--s2:#f0925a;--s3:#4fc4b2;--s4:#a78bfa;--gray:#727b88;}
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 60px}
-  header h1{font-size:23px;margin:0 0 6px;letter-spacing:-.01em}
-  .lede{color:var(--ink2);font-size:14px;max-width:760px;margin:0 0 4px}
+  .wrap{max-width:1060px;margin:0 auto;padding:28px 22px 60px}
+  header h1{font-size:22px;margin:0 0 6px;letter-spacing:-.01em;font-weight:600}
+  .lede{color:var(--ink2);font-size:14px;max-width:750px;margin:0 0 4px}
   .lede a{color:var(--accent);text-decoration:none} .lede a:hover{text-decoration:underline}
-  .byline{color:var(--muted);font-size:12.5px;margin:2px 0 20px}
-  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px}
-  .tabs button{font:14px var(--sans);padding:9px 16px;border:0;background:none;color:var(--muted);cursor:pointer;
-               border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:500}
-  .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
-  .controls{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:flex-end;background:var(--panel);
-            border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:18px}
-  .ctl{display:flex;flex-direction:column;gap:5px}
-  .ctl label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
-  select{font:14px var(--sans);padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);min-width:180px}
-  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-  .seg button{font:13px var(--sans);padding:7px 13px;border:0;background:var(--bg);color:var(--ink2);cursor:pointer}
-  .seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+  .byline{color:var(--muted);font-size:12.5px;margin:2px 0 22px}
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:18px}
+  .tabs button{font:14px var(--sans);padding:9px 15px;border:0;background:none;color:var(--muted);cursor:pointer;
+               border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+  .controls{display:flex;flex-wrap:wrap;gap:16px 26px;align-items:flex-end;margin-bottom:22px}
+  .ctl{display:flex;flex-direction:column;gap:6px}
+  .ctl label.h{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+  select{font:14px var(--sans);padding:6px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);min-width:180px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  .seg button{font:13px var(--sans);padding:6px 12px;border:0;background:var(--bg);color:var(--ink2);cursor:pointer}
+  .seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
   .seg button+button{border-left:1px solid var(--line)}
-  .checks{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
-  .checks label{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--ink2);text-transform:none;letter-spacing:0;font-weight:400;cursor:pointer}
+  .checks{display:flex;gap:13px;align-items:center;flex-wrap:wrap}
+  .checks label{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--ink2);font-weight:400;cursor:pointer}
   .checks input{accent-color:var(--accent)}
-  .sw{display:inline-block;width:11px;height:11px;border-radius:2px}
+  .sw{display:inline-block;width:10px;height:2.5px;border-radius:2px}
   .hidden{display:none !important}
-  /* stat tiles */
-  .tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
-  .tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
-  .tile .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;margin-bottom:5px}
-  .tile .v{font-size:22px;font-weight:650;letter-spacing:-.02em}
-  .tile .u{font-size:13px;color:var(--muted);margin-left:2px}
-  @media(max-width:720px){.tiles{grid-template-columns:repeat(2,1fr)}}
+  /* flattened stat strip */
+  .tiles{display:flex;flex-wrap:wrap;gap:0;margin:0 0 6px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .tile{padding:10px 20px 10px 0;margin-right:20px;flex:0 0 auto}
+  .tile .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:3px}
+  .tile .v{font-size:21px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .tile .u{font-size:12px;color:var(--muted);margin-left:1px;font-weight:400}
   .chart{width:100%;height:440px}
   .chart.tall{height:480px}
-  .hist{width:100%;height:320px}
-  .cap{color:var(--muted);font-size:12.5px;margin:8px 2px 14px}
-  h2.sec{font-size:16px;margin:18px 2px 2px}
-  /* slider */
-  .sliderrow{display:flex;align-items:center;gap:12px;margin:6px 2px 2px}
-  .sliderrow input[type=range]{flex:1;accent-color:var(--accent)}
+  .hist{width:100%;height:300px}
+  .cap{color:var(--muted);font-size:12.5px;margin:6px 2px 16px;max-width:820px}
+  h2.sec{font-size:15px;margin:20px 2px 2px;font-weight:600}
+  .sliderrow{display:flex;align-items:center;gap:12px;margin:8px 2px 2px}
+  .sliderrow input[type=range]{flex:1;accent-color:var(--ink)}
   .sliderrow .lab{font-family:var(--mono);font-size:11.5px;color:var(--muted);white-space:nowrap}
-  /* term chips */
-  .chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 6px}
-  .chip{display:inline-flex;align-items:center;gap:6px;font:13px var(--sans);padding:6px 12px;border-radius:999px;
+  .chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 8px}
+  .chip{display:inline-flex;align-items:center;gap:6px;font:13px var(--sans);padding:5px 12px;border-radius:999px;
         border:1px solid var(--line);background:var(--bg);color:var(--ink2);cursor:pointer}
-  .chip[aria-pressed="true"]{border-color:var(--accent);color:var(--ink)}
-  .chip[aria-disabled="true"]{opacity:.5;cursor:not-allowed}
-  .chip .dot{width:9px;height:9px;border-radius:50%}
+  .chip[aria-pressed="true"]{border-color:var(--ink);color:var(--ink)}
+  .chip[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
+  .chip .dot{width:16px;height:2.5px;border-radius:2px}
   .dateadd{font-size:13px;color:var(--muted);display:inline-flex;gap:6px;align-items:center}
-  .dateadd input{font:13px var(--sans);padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+  .dateadd input{font:13px var(--sans);padding:5px 8px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink)}
+  /* data table */
+  .dlbtn{font:13px var(--sans);padding:7px 14px;border:1px solid var(--ink);border-radius:7px;background:var(--ink);color:var(--bg);cursor:pointer}
+  .dlbtn:hover{opacity:.88}
+  .tablewrap{overflow-x:auto;border-top:1px solid var(--line)}
+  table.data{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+  table.data th{text-align:right;font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;
+                padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+  table.data th:first-child,table.data td:first-child{text-align:left}
+  table.data th.l,table.data td.l{text-align:left}
+  table.data td{padding:8px 12px;border-bottom:1px solid var(--grid);white-space:nowrap}
+  table.data tr:hover td{background:var(--panel)}
+  .spark{display:block}
   .status{padding:40px 12px;text-align:center;color:var(--muted);font-size:14px}
-  .foot{margin-top:22px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+  .foot{margin-top:24px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <h1>Macro Markets — Kalshi-implied forecasts</h1>
-    <p class="lede">Market-implied forecast distributions extracted from Kalshi macro contracts,
-      replicating the method of Diercks, Katz &amp; Wright (2026),
+    <p class="lede">Market-implied forecast distributions from Kalshi macro contracts, replicating the method of Diercks, Katz &amp; Wright (2026),
       <a href="https://www.nber.org/papers/w34702" target="_blank" rel="noopener">“Kalshi and the Rise of Macro Markets” (NBER WP 34702)</a>.</p>
-    <p class="byline">Data: Kalshi trades → distributions/moments (this pipeline) + realized outcomes from FRED. Original method: Diercks, Katz &amp; Wright (2026).</p>
+    <p class="byline">Kalshi trades → distributions/moments (this pipeline) + realized outcomes from FRED. Original method: Diercks, Katz &amp; Wright (2026).</p>
   </header>
 
   <div class="tabs" role="tablist">
     <button id="tab-fwd"  role="tab" aria-selected="true">Forward curves</button>
     <button id="tab-ts"   role="tab" aria-selected="false">Time series</button>
     <button id="tab-term" role="tab" aria-selected="false">Term structure</button>
+    <button id="tab-data" role="tab" aria-selected="false">Data</button>
   </div>
 
   <div class="controls">
-    <div class="ctl">
-      <label for="series">Series</label>
+    <div class="ctl notdata">
+      <label class="h" for="series">Series</label>
       <select id="series"></select>
     </div>
     <div class="ctl fwd-only">
-      <label>Central tendency</label>
+      <label class="h">Central tendency</label>
       <div class="seg" id="momentFwd">
-        <button data-m="mean" aria-pressed="true">Mean</button>
-        <button data-m="median" aria-pressed="false">Median</button>
-        <button data-m="mode" aria-pressed="false">Mode</button>
+        <button data-m="mean" aria-pressed="true">Mean</button><button data-m="median" aria-pressed="false">Median</button><button data-m="mode" aria-pressed="false">Mode</button>
       </div>
     </div>
     <div class="ctl fwd-only">
-      <label>Forward-curve cadence</label>
-      <div class="seg" id="cadence">
-        <button data-c="1" aria-pressed="true">Monthly</button>
-        <button data-c="3" aria-pressed="false">Quarterly</button>
-      </div>
+      <label class="h">Cadence</label>
+      <div class="seg" id="cadence"><button data-c="1" aria-pressed="true">Monthly</button><button data-c="3" aria-pressed="false">Quarterly</button></div>
     </div>
     <div class="ctl ts-only hidden">
-      <label for="contract">Release / contract</label>
+      <label class="h" for="contract">Release / contract</label>
       <select id="contract"></select>
     </div>
     <div class="ctl ts-only hidden">
-      <label>Show</label>
+      <label class="h">Show</label>
       <div class="checks" id="tsShow">
         <label><input type="checkbox" data-k="mean" checked><span class="sw" style="background:var(--s1)"></span>Mean</label>
         <label><input type="checkbox" data-k="median" checked><span class="sw" style="background:var(--s2)"></span>Median</label>
@@ -123,24 +127,36 @@
       </div>
     </div>
     <div class="ctl term-only hidden">
-      <label>Central tendency</label>
-      <div class="seg" id="momentTerm">
-        <button data-m="mean" aria-pressed="true">Mean</button>
-        <button data-m="median" aria-pressed="false">Median</button>
-        <button data-m="mode" aria-pressed="false">Mode</button>
+      <label class="h">Central tendency</label>
+      <div class="seg" id="momentTerm"><button data-m="mean" aria-pressed="true">Mean</button><button data-m="median" aria-pressed="false">Median</button><button data-m="mode" aria-pressed="false">Mode</button></div>
+    </div>
+    <div class="ctl data-only hidden">
+      <label class="h">Series</label>
+      <div class="checks" id="dataSeries"></div>
+    </div>
+    <div class="ctl data-only hidden">
+      <label class="h">Columns</label>
+      <div class="checks" id="dataCols">
+        <label><input type="checkbox" data-k="mean" checked>Mean</label>
+        <label><input type="checkbox" data-k="median" checked>Median</label>
+        <label><input type="checkbox" data-k="mode" checked>Mode</label>
+        <label><input type="checkbox" data-k="sd" checked>s.d.</label>
+        <label><input type="checkbox" data-k="vol" checked>Volume</label>
       </div>
+    </div>
+    <div class="ctl data-only hidden">
+      <label class="h">&nbsp;</label>
+      <button id="dlCsv" class="dlbtn">Download CSV</button>
     </div>
   </div>
 
   <div id="status" class="status">Connecting to the data store…</div>
 
-  <!-- FORWARD CURVES -->
   <section id="panel-fwd" class="panel hidden">
     <div id="chart-fwd" class="chart tall"></div>
     <p id="cap-fwd" class="cap"></p>
   </section>
 
-  <!-- TIME SERIES -->
   <section id="panel-ts" class="panel hidden">
     <div id="tiles" class="tiles"></div>
     <div id="chart-ts" class="chart"></div>
@@ -155,12 +171,16 @@
     <p id="cap-hist" class="cap"></p>
   </section>
 
-  <!-- TERM STRUCTURE -->
   <section id="panel-term" class="panel hidden">
     <div class="chips" id="chips" aria-label="As-of dates (up to 4)"></div>
-    <label class="dateadd" style="margin:0 0 8px">Add date <input type="date" id="termDate" aria-label="Custom as-of date"></label>
+    <label class="dateadd" style="margin:0 0 10px">Add date <input type="date" id="termDate"></label>
     <div id="chart-term" class="chart tall"></div>
     <p id="cap-term" class="cap"></p>
+  </section>
+
+  <section id="panel-data" class="panel hidden">
+    <p id="cap-data" class="cap"></p>
+    <div class="tablewrap"><div id="dataTable"></div></div>
   </section>
 
   <div class="foot" id="foot"></div>
@@ -170,362 +190,330 @@
 <script>
 (function(){
   "use strict";
-  const CFG = window.MK_CONFIG;
-  const $ = id => document.getElementById(id);
-  const fmt = (v,d=2)=> v==null||isNaN(v) ? "–" : (+v).toFixed(d);
-  const commas = v => v==null ? "–" : Math.round(v).toLocaleString("en-US");
+  const CFG=window.MK_CONFIG, $=id=>document.getElementById(id);
+  const fmt=(v,d=2)=>v==null||isNaN(v)?"–":(+v).toFixed(d);
+  const commas=v=>v==null?"–":Math.round(v).toLocaleString("en-US");
 
-  async function pgFetch(table, query){
-    const base = `${CFG.SUPABASE_URL}/rest/v1/${table}?${query}`;
-    const headers = {apikey: CFG.SUPABASE_ANON_KEY, Authorization:`Bearer ${CFG.SUPABASE_ANON_KEY}`};
-    const page=1000; let offset=0, out=[];
-    for(;;){
-      const r=await fetch(`${base}&limit=${page}&offset=${offset}`,{headers});
-      if(!r.ok) throw new Error(`${table}: HTTP ${r.status} ${await r.text()}`);
-      const rows=await r.json(); out=out.concat(rows);
-      if(rows.length<page) break; offset+=page;
-    }
+  async function pgFetch(table,query){
+    const base=`${CFG.SUPABASE_URL}/rest/v1/${table}?${query}`;
+    const headers={apikey:CFG.SUPABASE_ANON_KEY,Authorization:`Bearer ${CFG.SUPABASE_ANON_KEY}`};
+    const page=1000; let offset=0,out=[];
+    for(;;){const r=await fetch(`${base}&limit=${page}&offset=${offset}`,{headers});
+      if(!r.ok)throw new Error(`${table}: HTTP ${r.status} ${await r.text()}`);
+      const rows=await r.json();out=out.concat(rows);if(rows.length<page)break;offset+=page;}
     return out;
   }
 
   const MONARR=["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
   const MON={JAN:"January",FEB:"February",MAR:"March",APR:"April",MAY:"May",JUN:"June",JUL:"July",AUG:"August",SEP:"September",OCT:"October",NOV:"November",DEC:"December"};
-  function cmeta(c){
-    let m=c.match(/-(\d{2})([A-Z]{3})$/);
+  function cmeta(c){let m=c.match(/-(\d{2})([A-Z]{3})$/);
     if(m&&MON[m[2]]!==undefined){const y=2000+ +m[1];return{label:`${MON[m[2]]} ${y}`,key:y*12+MONARR.indexOf(m[2])};}
-    m=c.match(/-(\d{4})$/); if(m){return{label:`${+m[1]}`,key:+m[1]*12};}
-    m=c.match(/-(\d{2})$/); if(m){const y=2000+ +m[1];return{label:`${y}`,key:y*12};}
-    return {label:c.replace(/^KX/,""),key:-1};
-  }
+    m=c.match(/-(\d{4})$/);if(m)return{label:`${+m[1]}`,key:+m[1]*12};
+    m=c.match(/-(\d{2})$/);if(m){const y=2000+ +m[1];return{label:`${y}`,key:y*12};}
+    return{label:c.replace(/^KX/,""),key:-1};}
   const pretty=c=>cmeta(c).label;
   function contractDate(c){const k=cmeta(c).key;if(k<0)return null;return Date.UTC(Math.floor(k/12),k%12,15);}
   const parseD=s=>{const[y,m,d]=s.split("-").map(Number);return Date.UTC(y,m-1,d);};
   const addMonths=(t,n)=>{const d=new Date(t);d.setUTCMonth(d.getUTCMonth()+n);return d.getTime();};
   const isoDay=t=>new Date(t).toISOString().slice(0,10);
   const MON3=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const fmtD=s=>{const t=parseD(s);const d=new Date(t);return `${MON3[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;};
-  const DAY=864e5;
-  const cssv=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const fmtD=s=>{const d=new Date(parseD(s));return `${MON3[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;};
+  const DAY=864e5, cssv=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const TS_ORDER=["latest","m1","m3","m6","e2025","e2024"], TS_COLORS=["--s1","--s2","--s3","--s4"];
 
-  const TS_ORDER=["latest","m1","m3","m6","e2025","e2024"];
-  const TS_COLORS=["--s1","--s2","--s3","--s4"];
+  const state={tab:"fwd",series:null,momentFwd:"mean",cadence:1,momentTerm:"mean",contract:null,di:0,
+    show:{mean:true,median:true,mode:true,band:true,vol:true},termSnaps:["latest","m1","m3"],
+    dataSeries:{},cols:{mean:true,median:true,mode:true,sd:true,vol:true},data:{},dist:{}};
 
-  const state={tab:"fwd", series:null, momentFwd:"mean", cadence:1, momentTerm:"mean",
-    contract:null, di:0, show:{mean:true,median:true,mode:true,band:true,vol:true},
-    termSnaps:["latest","m1","m3"], data:{}, dist:{}};
+  // ---- Tufte layout defaults: quiet grid, no legend, direct labels via annotations ----
+  function baseLayout(extra){
+    const grid=cssv("--grid"),ink=cssv("--ink2"),paper=cssv("--bg");
+    return Object.assign({paper_bgcolor:paper,plot_bgcolor:paper,font:{color:ink,family:"var(--sans)",size:12},
+      showlegend:false,hovermode:"closest",margin:{t:10,r:64,b:24,l:52},
+      xaxis:{gridcolor:grid,showgrid:false,zeroline:false,showline:false,ticks:"outside",ticklen:4,tickcolor:grid,automargin:true},
+      yaxis:{gridcolor:grid,zeroline:false,showline:false,ticks:""}},extra);
+  }
+  function lastPoint(xs,ys){for(let i=ys.length-1;i>=0;i--)if(ys[i]!=null)return{x:xs[i],y:ys[i]};return null;}
+  function endLabel(x,y,text,color,yref){return{x,y,xref:"x",yref:yref||"y",text,showarrow:false,xanchor:"left",xshift:7,font:{size:11.5,color},bgcolor:"rgba(0,0,0,0)"};}
+  const CFG_PLOT={responsive:true,displayModeBar:false,displaylogo:false};
 
   // ---------- data prep ----------
-  function prep(moments, realized){
-    const byContract={}; let momMin=Infinity, momMax=-Infinity;
-    for(const r of moments){
-      const c=r.contract_preamble;
-      if(!byContract[c]) byContract[c]={t:[],ds:[],mean:[],median:[],mode:[],sd:[],vol:[],expiry:r.expiry_date||null};
-      const o=byContract[c], t=parseD(r.date);
-      o.t.push(t); o.ds.push(r.date); o.mean.push(r.mean); o.median.push(r.median); o.mode.push(r.mode);
-      o.sd.push(r.variance!=null&&r.variance>=0?Math.sqrt(r.variance):null); o.vol.push(r.daily_volume);
-      if(!o.expiry&&r.expiry_date) o.expiry=r.expiry_date;
-      if(t<momMin)momMin=t; if(t>momMax)momMax=t;
-    }
-    for(const c in byContract){
-      const o=byContract[c], idx=o.t.map((_,i)=>i).sort((a,b)=>o.t[a]-o.t[b]);
-      for(const k of ["t","ds","mean","median","mode","sd","vol"]) o[k]=idx.map(i=>o[k][i]);
-    }
+  function prep(moments,realized){
+    const byContract={};let momMin=Infinity,momMax=-Infinity;
+    for(const r of moments){const c=r.contract_preamble;
+      if(!byContract[c])byContract[c]={t:[],ds:[],mean:[],median:[],mode:[],sd:[],vol:[],expiry:r.expiry_date||null};
+      const o=byContract[c],t=parseD(r.date);
+      o.t.push(t);o.ds.push(r.date);o.mean.push(r.mean);o.median.push(r.median);o.mode.push(r.mode);
+      o.sd.push(r.variance!=null&&r.variance>=0?Math.sqrt(r.variance):null);o.vol.push(r.daily_volume);
+      if(!o.expiry&&r.expiry_date)o.expiry=r.expiry_date;
+      if(t<momMin)momMin=t;if(t>momMax)momMax=t;}
+    for(const c in byContract){const o=byContract[c],idx=o.t.map((_,i)=>i).sort((a,b)=>o.t[a]-o.t[b]);
+      for(const k of ["t","ds","mean","median","mode","sd","vol"])o[k]=idx.map(i=>o[k][i]);}
     const real=realized.map(r=>({t:parseD(r.date),v:r.value})).filter(r=>r.v!=null).sort((a,b)=>a.t-b.t);
-    return {byContract, realized:real, momMin, momMax};
+    return {byContract,realized:real,momMin,momMax};
   }
-  function prepDist(rows){
-    const strikeSet=new Set(), byDate={};
-    for(const r of rows){
-      strikeSet.add(+r.strike);
-      (byDate[r.date]||(byDate[r.date]={}))[+r.strike]=r.probability;
-    }
-    const strikes=[...strikeSet].sort((a,b)=>a-b);
-    return {strikes, byDate};
-  }
-
-  function valueAsOf(o,T,moment){
-    let bi=-1,bd=Infinity;
+  function prepDist(rows){const strikeSet=new Set(),byDate={};
+    for(const r of rows){strikeSet.add(+r.strike);(byDate[r.date]||(byDate[r.date]={}))[+r.strike]=r.probability;}
+    return {strikes:[...strikeSet].sort((a,b)=>a-b),byDate};}
+  function valueAsOf(o,T,moment){let bi=-1,bd=Infinity;
     for(let i=0;i<o.t.length;i++){const dd=Math.abs(o.t[i]-T);if(dd<bd){bd=dd;bi=i;}}
-    if(bi<0||bd>45*DAY) return null;
-    return o[moment][bi];
-  }
-  function contractsSorted(d){
-    return Object.keys(d.byContract).sort((a,b)=>
-      cmeta(b).key-cmeta(a).key || (d.byContract[b].expiry||"").localeCompare(d.byContract[a].expiry||""));
-  }
-  function defaultContract(d){const list=contractsSorted(d);return list.find(c=>d.byContract[c].t.length>=5)||list[0];}
+    return (bi<0||bd>45*DAY)?null:o[moment][bi];}
+  function contractsSorted(d){return Object.keys(d.byContract).sort((a,b)=>cmeta(b).key-cmeta(a).key||(d.byContract[b].expiry||"").localeCompare(d.byContract[a].expiry||""));}
+  function defaultContract(d){const l=contractsSorted(d);return l.find(c=>d.byContract[c].t.length>=5)||l[0];}
 
-  // =========================================================== FORWARD CURVES
+  // ================= FORWARD CURVES (grayscale history, accent present, black realized)
   function forwardCurves(d,moment,cadence){
-    if(d.momMax===-Infinity) return [];
-    const snaps=[]; let t=d.momMax;
-    while(t>=d.momMin-1){snaps.push(t);t=addMonths(t,-cadence);if(snaps.length>72)break;}
+    if(d.momMax===-Infinity)return[];
+    const snaps=[];let t=d.momMax;while(t>=d.momMin-1){snaps.push(t);t=addMonths(t,-cadence);if(snaps.length>72)break;}
     const contracts=Object.keys(d.byContract).map(c=>({c,x:contractDate(c)})).filter(o=>o.x!=null);
     const curves=[];
-    for(const T of snaps){
-      const pts=[];
+    for(const T of snaps){const pts=[];
       for(const{c,x}of contracts){const v=valueAsOf(d.byContract[c],T,moment);if(v!=null)pts.push({x,v});}
-      pts.sort((a,b)=>a.x-b.x);
-      if(pts.length>=2)curves.push({T,pts});
-    }
+      pts.sort((a,b)=>a.x-b.x);if(pts.length>=2)curves.push({T,pts});}
     return curves;
   }
   function renderForward(){
-    const d=state.data[state.series], meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"};
-    const curves=forwardCurves(d,state.momentFwd,state.cadence), traces=[], n=curves.length;
+    const d=state.data[state.series],meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"};
+    const curves=forwardCurves(d,state.momentFwd,state.cadence),traces=[],n=curves.length,anns=[];
     curves.forEach((cur,i)=>{
-      const isLatest=i===0, age=n<=1?0:i/(n-1), alpha=isLatest?1:Math.max(0.12,0.55*(1-age));
-      const color=isLatest?"rgba(228,87,46,1)":`rgba(11,94,215,${alpha})`, label=isoDay(cur.T);
-      traces.push({type:"scatter",mode:"lines+markers",x:cur.pts.map(p=>p.x),y:cur.pts.map(p=>p.v),
-        line:{color,width:isLatest?2.6:1},marker:{size:isLatest?5:2,color},showlegend:isLatest,
-        name:isLatest?`Latest forward (as of ${label})`:"",legendgroup:isLatest?"latest":"fan",
-        hoverlabel:{namelength:-1},hovertemplate:`as of ${label}<br>%{x|%b %Y}: %{y:.2f}<extra></extra>`});
+      const isLatest=i===0,age=n<=1?0:i/(n-1);
+      const color=isLatest?cssv("--s2"):`rgba(138,147,160,${Math.max(0.10,0.42*(1-age))})`;
+      traces.push({type:"scatter",mode:isLatest?"lines+markers":"lines",x:cur.pts.map(p=>p.x),y:cur.pts.map(p=>p.v),
+        line:{color,width:isLatest?2.4:1},marker:{size:isLatest?4:1,color},
+        hovertemplate:`as of ${isoDay(cur.T)}<br>%{x|%b %Y}: %{y:.2f}<extra></extra>`});
+      if(isLatest){const lp=cur.pts[cur.pts.length-1];anns.push(endLabel(lp.x,lp.v,"Latest",cssv("--s2")));}
     });
-    if(d.realized.length) traces.push({type:"scatter",mode:"lines",x:d.realized.map(p=>p.t),y:d.realized.map(p=>p.v),
-      line:{color:cssv("--realized"),width:3},name:"Realized (actual)",legendgroup:"realized",
-      hovertemplate:`realized<br>%{x|%b %Y}: %{y:.2f}<extra></extra>`});
-    const xMinDefault=addMonths(d.momMin,-12); let xMax=d.momMax;
+    if(d.realized.length){traces.push({type:"scatter",mode:"lines",x:d.realized.map(p=>p.t),y:d.realized.map(p=>p.v),
+      line:{color:cssv("--realized"),width:2.6},hovertemplate:`realized<br>%{x|%b %Y}: %{y:.2f}<extra></extra>`});
+      const lp=d.realized[d.realized.length-1];anns.push(endLabel(lp.t,lp.v,"Realized",cssv("--realized")));}
+    const xMinDefault=addMonths(d.momMin,-12);let xMax=d.momMax;
     Object.keys(d.byContract).forEach(c=>{const x=contractDate(c);if(x!=null&&x>xMax)xMax=x;});
     if(d.realized.length)xMax=Math.max(xMax,d.realized[d.realized.length-1].t);
-    const grid=cssv("--line"),ink=cssv("--ink2"),paper=cssv("--bg");
-    Plotly.react("chart-fwd",traces,{paper_bgcolor:paper,plot_bgcolor:paper,font:{color:ink},
-      margin:{t:12,r:14,b:20,l:52},hovermode:"closest",legend:{orientation:"h",y:1.06,x:0,font:{size:12}},
-      xaxis:{type:"date",gridcolor:grid,range:[xMinDefault,xMax],rangeslider:{visible:true,thickness:0.08,bordercolor:grid},
-        rangeselector:{buttons:[{step:"month",count:12,label:"1y",stepmode:"backward"},{step:"month",count:24,label:"2y",stepmode:"backward"},{step:"all",label:"All"}]}},
-      yaxis:{title:{text:meta.axis,font:{size:12}},gridcolor:grid,zeroline:false}},
-      {responsive:true,displayModeBar:false,displaylogo:false});
-    $("cap-fwd").textContent=`${meta.label} — ${n} market-implied forward curve${n===1?"":"s"} (${state.momentFwd}, ${state.cadence===1?"monthly":"quarterly"} back to ${isoDay(d.momMin).slice(0,7)}) vs the realized outcome.`;
+    Plotly.react("chart-fwd",traces,baseLayout({annotations:anns,margin:{t:10,r:70,b:24,l:52},
+      xaxis:{type:"date",gridcolor:cssv("--grid"),showgrid:false,zeroline:false,showline:false,ticks:"outside",ticklen:4,tickcolor:cssv("--grid"),
+        range:[xMinDefault,xMax],rangeslider:{visible:true,thickness:0.07,bgcolor:cssv("--panel"),bordercolor:cssv("--line")}},
+      yaxis:{title:{text:meta.axis,font:{size:11.5}},gridcolor:cssv("--grid"),zeroline:false,showline:false}}),CFG_PLOT);
+    $("cap-fwd").textContent=`${meta.label}. Each pale line is the market-implied path (${state.momentFwd}) across contract dates, priced ${state.cadence===1?"monthly":"quarterly"} back to ${isoDay(d.momMin).slice(0,7)}; the orange line is the current curve, black is the realized outcome (FRED).`;
   }
 
-  // =========================================================== TIME SERIES
-  function tsShapes(o){
-    const shapes=[];
-    if(o.expiry){const ex=parseD(o.expiry);shapes.push({type:"line",x0:ex,x1:ex,yref:"paper",y0:0,y1:1,line:{color:cssv("--muted"),width:1,dash:"dot"}});}
-    const mx=o.t[state.di];
-    shapes.push({type:"line",x0:mx,x1:mx,yref:"paper",y0:0,y1:1,line:{color:cssv("--ink"),width:1.4}});
-    return shapes;
-  }
+  // ================= TIME SERIES (stacked volume strip, direct labels)
+  function tsShapes(o){const s=[];
+    if(o.expiry){const ex=parseD(o.expiry);s.push({type:"line",x0:ex,x1:ex,yref:"paper",y0:0,y1:1,line:{color:cssv("--muted"),width:1,dash:"dot"}});}
+    const mx=o.t[state.di];s.push({type:"line",x0:mx,x1:mx,yref:"paper",y0:0,y1:1,line:{color:cssv("--ink"),width:1}});
+    return s;}
   function renderTimeLine(){
-    const d=state.data[state.series], meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"};
-    const o=d.byContract[state.contract]; if(!o)return;
-    const x=o.t, traces=[];
-    if(state.show.band){
-      const xb=[],up=[],dn=[];
+    const d=state.data[state.series],meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"};
+    const o=d.byContract[state.contract];if(!o)return;
+    const x=o.t,traces=[],anns=[],grid=cssv("--grid");
+    if(state.show.band){const xb=[],up=[],dn=[];
       for(let i=0;i<x.length;i++){if(o.mean[i]==null||o.sd[i]==null)continue;xb.push(x[i]);up.push(o.mean[i]+o.sd[i]);dn.push(o.mean[i]-o.sd[i]);}
-      if(xb.length){
-        traces.push({type:"scatter",mode:"lines",x:xb,y:up,line:{width:0},hoverinfo:"skip",showlegend:false});
-        traces.push({type:"scatter",mode:"lines",x:xb,y:dn,line:{width:0},fill:"tonexty",fillcolor:"rgba(11,94,215,0.12)",hoverinfo:"skip",showlegend:false});
-      }
-    }
-    if(state.show.vol && o.vol.some(v=>v!=null&&v>0)){
-      renderTimeLine._vmax=Math.max(...o.vol.map(v=>v||0),1);
-      traces.push({type:"bar",x,y:o.vol.map(v=>v||0),yaxis:"y2",name:"Volume",marker:{color:cssv("--muted"),opacity:0.35},
-        hovertemplate:"vol %{y:,}<extra></extra>"});
-    } else renderTimeLine._vmax=1;
-    for(const [k,cv,w] of [["mode","--s3",1.6],["median","--s2",1.8],["mean","--s1",2.6]]){
+      if(xb.length){traces.push({type:"scatter",mode:"lines",x:xb,y:up,line:{width:0},hoverinfo:"skip"});
+        traces.push({type:"scatter",mode:"lines",x:xb,y:dn,line:{width:0},fill:"tonexty",fillcolor:"rgba(138,147,160,0.13)",hoverinfo:"skip"});}}
+    const hasVol=state.show.vol&&o.vol.some(v=>v!=null&&v>0);
+    if(hasVol)traces.push({type:"bar",x,y:o.vol.map(v=>v||0),yaxis:"y2",marker:{color:cssv("--gray"),opacity:0.5},hovertemplate:"vol %{y:,}<extra></extra>"});
+    for(const [k,cv,w] of [["mode","--s3",1.5],["median","--s2",1.7],["mean","--s1",2.4]]){
       if(!state.show[k])continue;
-      traces.push({type:"scatter",mode:"lines",x,y:o[k],name:k[0].toUpperCase()+k.slice(1),line:{color:cssv(cv),width:w},connectgaps:false,
-        hovertemplate:`${k}: %{y:.2f}${meta.unit||""}<extra></extra>`});
-    }
-    const grid=cssv("--line"),ink=cssv("--ink2"),paper=cssv("--bg");
-    Plotly.react("chart-ts",traces,{paper_bgcolor:paper,plot_bgcolor:paper,font:{color:ink},
-      margin:{t:12,r:14,b:20,l:52},hovermode:"x unified",shapes:tsShapes(o),bargap:0.2,
-      legend:{orientation:"h",y:1.06,x:0,font:{size:12}},
-      xaxis:{type:"date",gridcolor:grid},
-      yaxis:{title:{text:meta.axis,font:{size:12}},gridcolor:grid,zeroline:false},
-      yaxis2:{overlaying:"y",side:"right",range:[0,renderTimeLine._vmax*4],showgrid:false,zeroline:false,visible:false}},
-      {responsive:true,displayModeBar:false,displaylogo:false});
+      traces.push({type:"scatter",mode:"lines",x,y:o[k],line:{color:cssv(cv),width:w},connectgaps:false,
+        hovertemplate:`${k}: %{y:.2f}${meta.unit||""}<extra></extra>`,name:k});
+      const lp=lastPoint(x,o[k]);if(lp)anns.push(endLabel(lp.x,lp.y,`${k[0].toUpperCase()+k.slice(1)} ${fmt(lp.y,1)}`,cssv(cv)));}
+    Plotly.react("chart-ts",traces,baseLayout({annotations:anns,hovermode:"x unified",shapes:tsShapes(o),bargap:0.3,margin:{t:10,r:78,b:24,l:52},
+      xaxis:{type:"date",gridcolor:grid,showgrid:false,zeroline:false,showline:false,ticks:"outside",ticklen:4,tickcolor:grid,anchor:hasVol?"y2":"y"},
+      yaxis:{title:{text:meta.axis,font:{size:11.5}},gridcolor:grid,zeroline:false,showline:false,domain:hasVol?[0.2,1]:[0,1]},
+      yaxis2:{domain:[0,0.13],gridcolor:grid,zeroline:false,showline:false,ticks:"",showticklabels:false,anchor:"x"}}),CFG_PLOT);
     const div=$("chart-ts");
-    if(!div._hoverBound){div._hoverBound=true;
-      div.on("plotly_hover",e=>{const p=e.points&&e.points.find(pp=>pp.pointIndex!=null);if(p)setDay(p.pointIndex,true);});}
+    if(!div._hoverBound){div._hoverBound=true;div.on("plotly_hover",e=>{const p=e.points&&e.points.find(pp=>pp.pointIndex!=null);if(p)setDay(p.pointIndex,true);});}
   }
   function renderTiles(){
-    const d=state.data[state.series], o=d.byContract[state.contract], i=state.di, u=(CFG.SERIES_META[state.series]||{}).unit||"";
-    const daysToExp=o.expiry?Math.round((parseD(o.expiry)-o.t[i])/DAY):null;
-    const totVol=o.vol.some(v=>v!=null)?o.vol.reduce((a,v)=>a+(v||0),0):null;
-    const tiles=[["Mean (selected day)",fmt(o.mean[i]),u],["Median",fmt(o.median[i]),u],["Implied s.d.",fmt(o.sd[i]),""],
-      ["Days to release",daysToExp!=null&&daysToExp>=0?daysToExp:"0",""],["Total volume",commas(totVol),""]];
+    const o=state.data[state.series].byContract[state.contract],i=state.di,u=(CFG.SERIES_META[state.series]||{}).unit||"";
+    const dte=o.expiry?Math.round((parseD(o.expiry)-o.t[i])/DAY):null;
+    const tv=o.vol.some(v=>v!=null)?o.vol.reduce((a,v)=>a+(v||0),0):null;
+    const tiles=[["Mean (selected day)",fmt(o.mean[i]),u],["Median",fmt(o.median[i]),u],["Implied s.d.",fmt(o.sd[i]),""],["Days to release",dte!=null&&dte>=0?dte:"0",""],["Total volume",commas(tv),""]];
     $("tiles").innerHTML=tiles.map(([k,v,uu])=>`<div class="tile"><div class="k">${k}</div><div class="v">${v}<span class="u">${uu}</span></div></div>`).join("");
   }
   function renderHist(){
-    const d=state.data[state.series], o=d.byContract[state.contract], meta=CFG.SERIES_META[state.series]||{};
-    const dist=(state.dist[state.series]||{})[state.contract];
-    const date=o.ds[state.di];
+    const o=state.data[state.series].byContract[state.contract],meta=CFG.SERIES_META[state.series]||{};
+    const dist=(state.dist[state.series]||{})[state.contract],date=o.ds[state.di];
     $("cap-hist").textContent=`${meta.label||state.series} — ${pretty(state.contract)}, market-implied probability by outcome on ${fmtD(date)}.`;
-    if(!dist||!dist.byDate[date]){Plotly.react("hist",[],{paper_bgcolor:cssv("--bg"),plot_bgcolor:cssv("--bg"),
-      margin:{t:20,r:14,b:40,l:44},annotations:[{text:"No distribution for this day.",showarrow:false,font:{color:cssv("--muted")}}],
-      xaxis:{visible:false},yaxis:{visible:false}},{responsive:true,displayModeBar:false});return;}
-    const strikes=dist.strikes, pm=dist.byDate[date];
-    const probs=strikes.map(s=>pm[s]||0);
-    let lo=0,hi=strikes.length-1;
-    while(lo<hi&&probs[lo]<0.05)lo++; while(hi>lo&&probs[hi]<0.05)hi--;
-    lo=Math.max(0,lo-1); hi=Math.min(strikes.length-1,hi+1);
-    const xs=strikes.slice(lo,hi+1), ys=probs.slice(lo,hi+1);
-    let modeI=0; ys.forEach((p,i)=>{if(p>ys[modeI])modeI=i;});
-    const colors=ys.map((_,i)=>i===modeI?cssv("--s2"):cssv("--s1"));
-    const mean=o.mean[state.di];
-    const grid=cssv("--line"),ink=cssv("--ink2"),paper=cssv("--bg");
-    const shapes=[], anns=[];
-    if(mean!=null){shapes.push({type:"line",x0:mean,x1:mean,yref:"paper",y0:0,y1:1,line:{color:cssv("--ink"),width:1.4,dash:"dash"}});
+    const grid=cssv("--grid");
+    if(!dist||!dist.byDate[date]){Plotly.react("hist",[],baseLayout({annotations:[{text:"No distribution for this day.",showarrow:false,font:{color:cssv("--muted")}}],xaxis:{visible:false},yaxis:{visible:false}}),CFG_PLOT);return;}
+    const strikes=dist.strikes,pm=dist.byDate[date],probs=strikes.map(s=>pm[s]||0);
+    let lo=0,hi=strikes.length-1;while(lo<hi&&probs[lo]<0.05)lo++;while(hi>lo&&probs[hi]<0.05)hi--;
+    lo=Math.max(0,lo-1);hi=Math.min(strikes.length-1,hi+1);
+    const xs=strikes.slice(lo,hi+1),ys=probs.slice(lo,hi+1);
+    let mi=0;ys.forEach((p,i)=>{if(p>ys[mi])mi=i;});
+    const colors=ys.map((_,i)=>i===mi?cssv("--s2"):"rgba(138,147,160,0.55)");
+    const mean=o.mean[state.di],shapes=[],anns=[];
+    if(mean!=null){shapes.push({type:"line",x0:mean,x1:mean,yref:"paper",y0:0,y1:1,line:{color:cssv("--ink"),width:1.3,dash:"dash"}});
       anns.push({x:mean,y:1,yref:"paper",yanchor:"bottom",text:`mean ${fmt(mean)}`,showarrow:false,font:{size:11,color:cssv("--ink")}});}
-    Plotly.react("hist",[{type:"bar",x:xs,y:ys,marker:{color:colors},width:xs.length>1?(xs[1]-xs[0])*0.72:0.1,
-      hovertemplate:`outcome %{x}${meta.unit||""}<br>%{y:.1f}%<extra></extra>`}],
-      {paper_bgcolor:paper,plot_bgcolor:paper,font:{color:ink},margin:{t:20,r:14,b:44,l:44},shapes,annotations:anns,
-       xaxis:{title:{text:`Outcome (${meta.unit==="%"?"percent":"value"})`,font:{size:11}},gridcolor:grid,zeroline:false},
-       yaxis:{ticksuffix:"%",gridcolor:grid,zeroline:false,rangemode:"tozero"}},
-      {responsive:true,displayModeBar:false,displaylogo:false});
+    Plotly.react("hist",[{type:"bar",x:xs,y:ys,marker:{color:colors},width:xs.length>1?(xs[1]-xs[0])*0.7:0.1,hovertemplate:`outcome %{x}${meta.unit||""}<br>%{y:.1f}%<extra></extra>`}],
+      baseLayout({shapes,annotations:anns,margin:{t:22,r:14,b:40,l:44},
+        xaxis:{title:{text:`Outcome (${meta.unit==="%"?"percent":"value"})`,font:{size:11}},gridcolor:grid,showgrid:false,zeroline:false,showline:false,ticks:"outside",ticklen:4,tickcolor:grid},
+        yaxis:{ticksuffix:"%",gridcolor:grid,zeroline:false,showline:false,rangemode:"tozero"}}),CFG_PLOT);
   }
-  function syncSlider(){
-    const o=state.data[state.series].byContract[state.contract];
-    const sl=$("dateSlider"); sl.max=o.ds.length-1; sl.value=state.di;
-    $("dateMin").textContent=fmtD(o.ds[0]); $("dateCur").textContent=fmtD(o.ds[state.di]);
-  }
-  // fromHover=true skips moving the (already hovered) line but still updates marker/tiles/hist
-  function setDay(i,fromHover){
-    const o=state.data[state.series].byContract[state.contract];
-    state.di=Math.max(0,Math.min(i,o.ds.length-1));
-    $("dateSlider").value=state.di; $("dateCur").textContent=fmtD(o.ds[state.di]);
-    Plotly.relayout("chart-ts",{shapes:tsShapes(o)});
-    renderTiles(); renderHist();
-  }
-  function renderTimeAll(){ renderTimeLine(); syncSlider(); renderTiles(); renderHist(); }
+  function syncSlider(){const o=state.data[state.series].byContract[state.contract],sl=$("dateSlider");
+    sl.max=o.ds.length-1;sl.value=state.di;$("dateMin").textContent=fmtD(o.ds[0]);$("dateCur").textContent=fmtD(o.ds[state.di]);}
+  function setDay(i){const o=state.data[state.series].byContract[state.contract];
+    state.di=Math.max(0,Math.min(i,o.ds.length-1));$("dateSlider").value=state.di;$("dateCur").textContent=fmtD(o.ds[state.di]);
+    Plotly.relayout("chart-ts",{shapes:tsShapes(o)});renderTiles();renderHist();}
+  function renderTimeAll(){renderTimeLine();syncSlider();renderTiles();renderHist();}
 
-  // =========================================================== TERM STRUCTURE
-  function snapDefs(d){
-    const latest=d.momMax, minus=mo=>addMonths(latest,-mo);
-    return {latest:{label:"Latest",t:latest}, m1:{label:"−1M",t:minus(1)}, m3:{label:"−3M",t:minus(3)},
-      m6:{label:"−6M",t:minus(6)}, e2025:{label:"End-2025",t:Date.UTC(2025,11,31)}, e2024:{label:"End-2024",t:Date.UTC(2024,11,31)}};
-  }
+  // ================= TERM STRUCTURE (direct-labelled lines)
+  function snapDefs(d){const latest=d.momMax,minus=mo=>addMonths(latest,-mo);
+    return{latest:{label:"Latest",t:latest},m1:{label:"−1M",t:minus(1)},m3:{label:"−3M",t:minus(3)},m6:{label:"−6M",t:minus(6)},e2025:{label:"End-2025",t:Date.UTC(2025,11,31)},e2024:{label:"End-2024",t:Date.UTC(2024,11,31)}};}
   const shortD=t=>{const d=new Date(t);return `${d.getUTCDate()} ${MON3[d.getUTCMonth()]} '${String(d.getUTCFullYear()).slice(2)}`;};
-  function resolveSnap(id,defs){ if(id.startsWith("custom:")){const ds=id.slice(7);return{label:shortD(parseD(ds)),t:parseD(ds)};} return defs[id]; }
-  function renderChips(){
-    const d=state.data[state.series], defs=snapDefs(d), box=$("chips"), full=state.termSnaps.length>=4;
-    box.innerHTML="";
-    const chip=(id,label,on,removable)=>{
-      const b=document.createElement("button"); b.className="chip"; b.dataset.id=id;
-      b.setAttribute("aria-pressed",on?"true":"false");
-      if(!on&&full) b.setAttribute("aria-disabled","true");
-      const idx=state.termSnaps.indexOf(id);
-      const dot=on?`<span class="dot" style="background:${cssv(TS_COLORS[idx])}"></span>`:"";
-      b.innerHTML=dot+label+(removable?' <span aria-hidden="true" style="opacity:.55">×</span>':"");
-      box.appendChild(b);
-    };
+  function resolveSnap(id,defs){if(id.startsWith("custom:")){const ds=id.slice(7);return{label:shortD(parseD(ds)),t:parseD(ds)};}return defs[id];}
+  function renderChips(){const d=state.data[state.series],defs=snapDefs(d),box=$("chips"),full=state.termSnaps.length>=4;box.innerHTML="";
+    const chip=(id,label,on,rm)=>{const b=document.createElement("button");b.className="chip";b.dataset.id=id;
+      b.setAttribute("aria-pressed",on?"true":"false");if(!on&&full)b.setAttribute("aria-disabled","true");
+      const idx=state.termSnaps.indexOf(id),dot=on?`<span class="dot" style="background:${cssv(TS_COLORS[idx])}"></span>`:"";
+      b.innerHTML=dot+label+(rm?' <span aria-hidden="true" style="opacity:.55">×</span>':"");box.appendChild(b);};
     TS_ORDER.forEach(id=>chip(id,defs[id].label,state.termSnaps.includes(id),false));
-    state.termSnaps.filter(id=>id.startsWith("custom:")).forEach(id=>chip(id,resolveSnap(id,defs).label,true,true));
-  }
+    state.termSnaps.filter(id=>id.startsWith("custom:")).forEach(id=>chip(id,resolveSnap(id,defs).label,true,true));}
   function renderTerm(){
-    const d=state.data[state.series], meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"}, defs=snapDefs(d);
+    const d=state.data[state.series],meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"},defs=snapDefs(d);
     const cons=Object.keys(d.byContract).map(c=>({c,x:contractDate(c)})).filter(o=>o.x!=null).sort((a,b)=>a.x-b.x);
-    const traces=[];
-    state.termSnaps.slice(0,4).forEach((id,idx)=>{
-      const sd=resolveSnap(id,defs); if(!sd)return;
-      const pts=[];
-      for(const{c,x}of cons){const v=valueAsOf(d.byContract[c],sd.t,state.momentTerm);if(v!=null)pts.push({x,v});}
-      if(pts.length) traces.push({type:"scatter",mode:"lines+markers",x:pts.map(p=>p.x),y:pts.map(p=>p.v),
-        name:sd.label,line:{color:cssv(TS_COLORS[idx]),width:2.2},marker:{size:6,color:cssv(TS_COLORS[idx])},
-        hovertemplate:`${sd.label}<br>%{x|%b %Y}: %{y:.2f}<extra></extra>`});
-    });
-    const grid=cssv("--line"),ink=cssv("--ink2"),paper=cssv("--bg");
-    Plotly.react("chart-term",traces,{paper_bgcolor:paper,plot_bgcolor:paper,font:{color:ink},
-      margin:{t:12,r:14,b:34,l:52},hovermode:"closest",legend:{orientation:"h",y:1.06,x:0,font:{size:12}},
-      xaxis:{type:"date",gridcolor:grid,title:{text:"Contract date",font:{size:11}}},
-      yaxis:{title:{text:meta.axis,font:{size:12}},gridcolor:grid,zeroline:false}},
-      {responsive:true,displayModeBar:false,displaylogo:false});
-    $("cap-term").textContent=`${meta.label} — market-implied ${state.momentTerm} across contract dates, each line priced as of its labelled date`+
-      (traces.length?".":". Select at least one date.");
+    const traces=[],anns=[];
+    state.termSnaps.slice(0,4).forEach((id,idx)=>{const sd=resolveSnap(id,defs);if(!sd)return;
+      const pts=[];for(const{c,x}of cons){const v=valueAsOf(d.byContract[c],sd.t,state.momentTerm);if(v!=null)pts.push({x,v});}
+      if(pts.length){const col=cssv(TS_COLORS[idx]);
+        traces.push({type:"scatter",mode:"lines+markers",x:pts.map(p=>p.x),y:pts.map(p=>p.v),line:{color:col,width:2},marker:{size:5,color:col},
+          hovertemplate:`${sd.label}<br>%{x|%b %Y}: %{y:.2f}<extra></extra>`});
+        const lp=pts[pts.length-1];anns.push(endLabel(lp.x,lp.v,sd.label,col));}});
+    Plotly.react("chart-term",traces,baseLayout({annotations:anns,margin:{t:10,r:74,b:34,l:52},
+      xaxis:{type:"date",gridcolor:cssv("--grid"),showgrid:false,zeroline:false,showline:false,ticks:"outside",ticklen:4,tickcolor:cssv("--grid"),title:{text:"Contract date",font:{size:11}}},
+      yaxis:{title:{text:meta.axis,font:{size:11.5}},gridcolor:cssv("--grid"),zeroline:false,showline:false}}),CFG_PLOT);
+    $("cap-term").textContent=`${meta.label} — market-implied ${state.momentTerm} across contract dates, each line priced as of its labelled date`+(traces.length?".":". Select at least one date.");
     renderChips();
   }
 
-  // =========================================================== dispatch + load
-  function render(){
-    if(!state.data[state.series]) return;
-    if(state.tab==="fwd") renderForward();
-    else if(state.tab==="ts") renderTimeAll();
-    else renderTerm();
+  // ================= DATA TABLE (+ sparklines + CSV)
+  function sparkSVG(vals){
+    const pts=vals.map((v,i)=>({v,i})).filter(p=>p.v!=null);
+    const w=132,h=26,pad=2;
+    if(pts.length<2)return `<svg class="spark" width="${w}" height="${h}"></svg>`;
+    let lo=Infinity,hi=-Infinity;pts.forEach(p=>{if(p.v<lo)lo=p.v;if(p.v>hi)hi=p.v;});
+    const n=vals.length-1||1,X=i=>pad+(i/n)*(w-2*pad),Y=v=>hi===lo?h/2:pad+(1-(v-lo)/(hi-lo))*(h-2*pad);
+    const dpath=pts.map((p,j)=>`${j?"L":"M"}${X(p.i).toFixed(1)},${Y(p.v).toFixed(1)}`).join("");
+    const last=pts[pts.length-1];
+    return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`+
+      `<path d="${dpath}" fill="none" stroke="var(--gray)" stroke-width="1"/>`+
+      `<circle cx="${X(last.i).toFixed(1)}" cy="${Y(last.v).toFixed(1)}" r="1.8" fill="var(--s2)"/></svg>`;
   }
-  async function ensureDist(k,c){
-    state.dist[k]=state.dist[k]||{};
-    if(state.dist[k][c]) return;
-    const rows=await pgFetch("daily_distributions",`select=date,strike,probability&series=eq.${k}&contract_preamble=eq.${encodeURIComponent(c)}&order=date,strike`);
-    state.dist[k][c]=prepDist(rows);
+  const COLS=[["mean","Mean"],["median","Median"],["mode","Mode"],["sd","s.d."],["vol","Volume"]];
+  async function renderData(){
+    const sel=Object.keys(state.dataSeries).filter(k=>state.dataSeries[k]);
+    if(!sel.length){$("dataTable").innerHTML="";$("cap-data").textContent="Select one or more series to list their contracts.";return;}
+    $("cap-data").textContent="Loading…";
+    await Promise.all(sel.map(fetchSeries));
+    const cols=COLS.filter(([k])=>state.cols[k]);
+    let html=`<table class="data"><thead><tr><th class="l">Series</th><th class="l">Contract</th><th class="l">Trajectory (mean)</th>`+
+      cols.map(([,l])=>`<th>${l}</th>`).join("")+`<th>Obs</th><th>Resolves</th></tr></thead><tbody>`;
+    let nrows=0;
+    for(const k of sel){const d=state.data[k];if(!d)continue;const label=CFG.SERIES_META[k]?.label||k;
+      for(const c of contractsSorted(d)){const o=d.byContract[c],i=o.t.length-1;
+        const cell=key=>{if(key==="vol"){const tv=o.vol.some(v=>v!=null)?o.vol.reduce((a,v)=>a+(v||0),0):null;return commas(tv);}return fmt(o[key][i]);};
+        html+=`<tr><td class="l">${label}</td><td class="l">${pretty(c)}</td><td class="l">${sparkSVG(o.mean)}</td>`+
+          cols.map(([key])=>`<td>${cell(key)}</td>`).join("")+`<td>${o.t.length}</td><td>${o.expiry||"–"}</td></tr>`;
+        nrows++;}}
+    html+="</tbody></table>";
+    $("dataTable").innerHTML=html;
+    $("cap-data").textContent=`${nrows} contract${nrows===1?"":"s"} across ${sel.length} series. Values shown are the latest trading day; the sparkline traces each contract's mean over its life. Download for the full daily history.`;
   }
-  async function ensureSeries(k){
-    if(!state.data[k]){
-      $("status").style.display="block"; $("status").textContent=`Loading ${CFG.SERIES_META[k]?.label||k}…`;
-      document.querySelectorAll(".panel").forEach(p=>p.classList.add("hidden"));
-      const [moments,realized]=await Promise.all([
-        pgFetch("daily_moments",`select=contract_preamble,date,expiry_date,mean,median,mode,variance,daily_volume&series=eq.${k}`),
-        pgFetch("underlying_history",`select=date,value&series=eq.${k}&order=date`)]);
-      state.data[k]=prep(moments,realized);
-      if(!moments.length){$("status").textContent=`No data yet for ${CFG.SERIES_META[k]?.label||k}. The pipeline may still be seeding — check back shortly.`;return;}
-    }
-    const d=state.data[k], sel=$("contract"); sel.innerHTML="";
-    for(const c of contractsSorted(d)){const opt=document.createElement("option");opt.value=c;opt.textContent=`${pretty(c)}  ·  ${d.byContract[c].t.length} d`;sel.appendChild(opt);}
-    if(!state.contract||!d.byContract[state.contract]) state.contract=defaultContract(d);
-    sel.value=state.contract;
-    state.di=d.byContract[state.contract].t.length-1;
-    $("status").style.display="none";
-    await showTab();
+  function downloadCSV(){
+    const sel=Object.keys(state.dataSeries).filter(k=>state.dataSeries[k]);
+    if(!sel.length){alert('Select at least one series to download.');return;}
+    const cols=COLS.filter(([k])=>state.cols[k]);
+    const head=["series","contract","date","expiry",...cols.map(([,l])=>l.toLowerCase().replace(/[^a-z]/g,""))];
+    const lines=[head.join(",")];
+    for(const k of sel){const d=state.data[k];if(!d)continue;
+      for(const c of contractsSorted(d)){const o=d.byContract[c];
+        for(let i=0;i<o.ds.length;i++){
+          const row=[k,c,o.ds[i],o.expiry||""];
+          for(const[key]of cols)row.push(key==="vol"?(o.vol[i]==null?"":o.vol[i]):(o[key][i]==null?"":o[key][i]));
+          lines.push(row.join(","));}}}
+    const blob=new Blob([lines.join("\n")],{type:"text/csv"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+    a.download=`macro_kalshi_${sel.join("-")}_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(a.href);
   }
 
+  // ================= dispatch + load
+  function render(){if(!state.data[state.series]&&state.tab!=="data")return;
+    if(state.tab==="fwd")renderForward();else if(state.tab==="ts")renderTimeAll();else if(state.tab==="term")renderTerm();else renderData();}
+  async function fetchSeries(k){
+    if(state.data[k])return state.data[k];
+    const [moments,realized]=await Promise.all([
+      pgFetch("daily_moments",`select=contract_preamble,date,expiry_date,mean,median,mode,variance,daily_volume&series=eq.${k}`),
+      pgFetch("underlying_history",`select=date,value&series=eq.${k}&order=date`)]);
+    state.data[k]=prep(moments,realized);return state.data[k];
+  }
+  async function ensureDist(k,c){state.dist[k]=state.dist[k]||{};if(state.dist[k][c])return;
+    const rows=await pgFetch("daily_distributions",`select=date,strike,probability&series=eq.${k}&contract_preamble=eq.${encodeURIComponent(c)}&order=date,strike`);
+    state.dist[k][c]=prepDist(rows);}
+  async function ensureSeries(k){
+    if(!state.data[k]){$("status").style.display="block";$("status").textContent=`Loading ${CFG.SERIES_META[k]?.label||k}…`;
+      document.querySelectorAll(".panel").forEach(p=>p.classList.add("hidden"));
+      await fetchSeries(k);
+      if(!Object.keys(state.data[k].byContract).length){$("status").textContent=`No data yet for ${CFG.SERIES_META[k]?.label||k}. The pipeline may still be seeding — check back shortly.`;return;}}
+    const d=state.data[k],sel=$("contract");sel.innerHTML="";
+    for(const c of contractsSorted(d)){const opt=document.createElement("option");opt.value=c;opt.textContent=`${pretty(c)}  ·  ${d.byContract[c].t.length} d`;sel.appendChild(opt);}
+    if(!state.contract||!d.byContract[state.contract])state.contract=defaultContract(d);
+    sel.value=state.contract;state.di=d.byContract[state.contract].t.length-1;
+    $("status").style.display="none";await showTab();
+  }
   async function showTab(){
     document.querySelectorAll(".panel").forEach(p=>p.classList.add("hidden"));
     $(`panel-${state.tab}`).classList.remove("hidden");
-    if(state.tab==="ts"){ try{ await ensureDist(state.series,state.contract);}catch(e){console.error(e);} }
+    if(state.tab==="ts"){try{await ensureDist(state.series,state.contract);}catch(e){console.error(e);}}
+    if(state.tab==="data"){await renderData();return;}
     render();
   }
-
-  // ---------- wiring ----------
-  function selectTab(tab){
-    state.tab=tab;
-    for(const t of ["fwd","ts","term"]) $(`tab-${t}`).setAttribute("aria-selected",t===tab);
+  function selectTab(tab){state.tab=tab;
+    for(const t of ["fwd","ts","term","data"])$(`tab-${t}`).setAttribute("aria-selected",t===tab);
+    document.querySelectorAll(".notdata").forEach(e=>e.classList.toggle("hidden",tab==="data"));
     document.querySelectorAll(".fwd-only").forEach(e=>e.classList.toggle("hidden",tab!=="fwd"));
     document.querySelectorAll(".ts-only").forEach(e=>e.classList.toggle("hidden",tab!=="ts"));
     document.querySelectorAll(".term-only").forEach(e=>e.classList.toggle("hidden",tab!=="term"));
-    if(state.data[state.series]) showTab();
+    document.querySelectorAll(".data-only").forEach(e=>e.classList.toggle("hidden",tab!=="data"));
+    if(state.data[state.series]||tab==="data")showTab();
   }
-  function segWire(id,key,cast){
-    $(id).addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
-      [...$(id).children].forEach(x=>x.setAttribute("aria-pressed","false"));
-      b.setAttribute("aria-pressed","true"); state[key]=cast(b.dataset.m||b.dataset.c); render();});
-  }
-  async function loadSeriesSafe(){
-    try{ await ensureSeries(state.series); }
-    catch(err){$("status").style.display="block";document.querySelectorAll(".panel").forEach(p=>p.classList.add("hidden"));
-      $("status").textContent="Could not load data: "+err.message;console.error(err);}
-  }
+  function segWire(id,key,cast){$(id).addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+    [...$(id).children].forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");
+    state[key]=cast(b.dataset.m||b.dataset.c);render();});}
+  async function loadSeriesSafe(){try{await ensureSeries(state.series);}catch(err){$("status").style.display="block";
+    document.querySelectorAll(".panel").forEach(p=>p.classList.add("hidden"));$("status").textContent="Could not load data: "+err.message;console.error(err);}}
 
   function init(){
     const sel=$("series");
     for(const k in CFG.SERIES_META){const o=document.createElement("option");o.value=k;o.textContent=CFG.SERIES_META[k].label;sel.appendChild(o);}
     state.series=sel.value;
+    // data-tab series checklist (default: current series)
+    const ds=$("dataSeries");
+    for(const k in CFG.SERIES_META){state.dataSeries[k]=(k===state.series);
+      const id="dser_"+k,l=document.createElement("label");
+      l.innerHTML=`<input type="checkbox" data-k="${k}" ${k===state.series?"checked":""}>${CFG.SERIES_META[k].label}`;ds.appendChild(l);}
     sel.addEventListener("change",()=>{state.series=sel.value;state.contract=null;loadSeriesSafe();});
     $("contract").addEventListener("change",async e=>{state.contract=e.target.value;
       state.di=state.data[state.series].byContract[state.contract].t.length-1;
-      try{await ensureDist(state.series,state.contract);}catch(err){console.error(err);} renderTimeAll();});
+      try{await ensureDist(state.series,state.contract);}catch(err){console.error(err);}renderTimeAll();});
     $("tab-fwd").addEventListener("click",()=>selectTab("fwd"));
     $("tab-ts").addEventListener("click",()=>selectTab("ts"));
     $("tab-term").addEventListener("click",()=>selectTab("term"));
-    segWire("momentFwd","momentFwd",v=>v);
-    segWire("cadence","cadence",v=>+v);
-    segWire("momentTerm","momentTerm",v=>v);
+    $("tab-data").addEventListener("click",()=>selectTab("data"));
+    segWire("momentFwd","momentFwd",v=>v);segWire("cadence","cadence",v=>+v);segWire("momentTerm","momentTerm",v=>v);
     $("tsShow").addEventListener("change",e=>{const k=e.target.dataset.k;if(!k)return;state.show[k]=e.target.checked;renderTimeLine();});
     $("dateSlider").addEventListener("input",e=>setDay(+e.target.value));
-    $("chips").addEventListener("click",e=>{
-      const b=e.target.closest(".chip");if(!b)return;const id=b.dataset.id;
-      const i=state.termSnaps.indexOf(id);
-      if(i>=0) state.termSnaps.splice(i,1);
-      else if(state.termSnaps.length<4) state.termSnaps.push(id);
-      renderTerm();
-    });
-    $("termDate").addEventListener("change",e=>{
-      if(!e.target.value)return; const id="custom:"+e.target.value;
-      if(!state.termSnaps.includes(id)&&state.termSnaps.length<4) state.termSnaps.push(id);
-      e.target.value=""; renderTerm();
-    });
-    $("foot").innerHTML=`Forward curves: each thin line is the market-implied path across contract dates as of a past date, over the realized outcome (FRED). `+
-      `Time series: one contract's mean/median/mode over its trading life, ±1 s.d. band and the probability distribution for the day under the marker/slider. `+
-      `Term structure: pick up to 4 as-of dates. Contract target dates are the nominal period mid-month; as-of matching uses the nearest observation within ~6 weeks.`;
+    $("chips").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;const id=b.dataset.id,i=state.termSnaps.indexOf(id);
+      if(i>=0)state.termSnaps.splice(i,1);else if(state.termSnaps.length<4)state.termSnaps.push(id);renderTerm();});
+    $("termDate").addEventListener("change",e=>{if(!e.target.value)return;const id="custom:"+e.target.value;
+      if(!state.termSnaps.includes(id)&&state.termSnaps.length<4)state.termSnaps.push(id);e.target.value="";renderTerm();});
+    $("dataSeries").addEventListener("change",e=>{const k=e.target.dataset.k;if(!k)return;state.dataSeries[k]=e.target.checked;renderData();});
+    $("dataCols").addEventListener("change",e=>{const k=e.target.dataset.k;if(!k)return;state.cols[k]=e.target.checked;renderData();});
+    $("dlCsv").addEventListener("click",downloadCSV);
+    $("foot").innerHTML=`Forward curves: pale = past market-implied paths, orange = current, black = realized (FRED). `+
+      `Time series: one contract's moments over its life with the ±1 s.d. band and the day's probability distribution. `+
+      `Term structure: up to four as-of dates. Data: browse contracts with sparklines and download the full daily history as CSV. `+
+      `Contract target dates are the nominal period mid-month; as-of matching uses the nearest observation within ~6 weeks.`;
     loadSeriesSafe();
   }
   init();

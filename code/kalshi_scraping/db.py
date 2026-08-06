@@ -61,6 +61,13 @@ CREATE TABLE IF NOT EXISTS daily_distributions (
     daily_volume       DOUBLE PRECISION,
     PRIMARY KEY (series, contract_preamble, date, strike)
 );
+
+CREATE TABLE IF NOT EXISTS underlying_history (
+    series  TEXT NOT NULL,
+    date    DATE NOT NULL,
+    value   DOUBLE PRECISION,
+    PRIMARY KEY (series, date)
+);
 """
 
 # Expose the derived tables (public market data) read-only to the Supabase
@@ -72,6 +79,7 @@ DO $$
 BEGIN
   EXECUTE 'ALTER TABLE daily_moments ENABLE ROW LEVEL SECURITY';
   EXECUTE 'ALTER TABLE daily_distributions ENABLE ROW LEVEL SECURITY';
+  EXECUTE 'ALTER TABLE underlying_history ENABLE ROW LEVEL SECURITY';
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
@@ -83,12 +91,15 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='daily_distributions' AND policyname='public_read') THEN
     EXECUTE 'CREATE POLICY public_read ON daily_distributions FOR SELECT USING (true)';
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='underlying_history' AND policyname='public_read') THEN
+    EXECUTE 'CREATE POLICY public_read ON underlying_history FOR SELECT USING (true)';
+  END IF;
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
 DO $$
 BEGIN
-  EXECUTE 'GRANT SELECT ON daily_moments, daily_distributions TO anon, authenticated';
+  EXECUTE 'GRANT SELECT ON daily_moments, daily_distributions, underlying_history TO anon, authenticated';
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 """
@@ -228,6 +239,17 @@ def replace_distributions(conn, series, rows):
                    probability, yes_price, adjusted_yes_price, daily_volume)
                 VALUES %s
             """, [(series,) + r for r in rows], page_size=2000)
+    conn.commit()
+
+
+def replace_underlying(conn, series, rows):
+    """rows: list of (date, value). Replaces the realised history for a series."""
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM underlying_history WHERE series = %s", (series,))
+        if rows:
+            execute_values(cur, """
+                INSERT INTO underlying_history (series, date, value) VALUES %s
+            """, [(series, d, v) for d, v in rows], page_size=2000)
     conn.commit()
 
 

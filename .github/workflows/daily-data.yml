@@ -5,6 +5,13 @@ on:
     - cron: "5 11 * * *"   # daily, 11:05 UTC
   workflow_dispatch:        # allow manual triggering too
 
+# Never let two runs write to the database at once (a scheduled run overlapping
+# a long manual seed would race on the same tables). Queue a new run until the
+# in-flight one finishes rather than cancelling it mid-write.
+concurrency:
+  group: daily-data
+  cancel-in-progress: false
+
 jobs:
   update-data:
     runs-on: ubuntu-latest
@@ -78,3 +85,17 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: python code/kalshi_scraping/load_derived.py
+
+      # -----------------------
+      # Fetch each indicator's realised underlying series from FRED into Postgres
+      # (underlying_history) so the front-end can overlay actuals on the
+      # market-implied forecasts. Independent of the Kalshi scrape; runs even if
+      # the scrape found no new trades.
+      # -----------------------
+      - name: Fetch FRED realized data
+        if: always()
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: python code/kalshi_scraping/fetch_fred.py

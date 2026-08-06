@@ -115,6 +115,7 @@
     <button id="tab-fwd"  role="tab" aria-selected="true">Forward curves</button>
     <button id="tab-ts"   role="tab" aria-selected="false">Time series</button>
     <button id="tab-term" role="tab" aria-selected="false">Term structure</button>
+    <button id="tab-risk" role="tab" aria-selected="false">Uncertainty &amp; skew</button>
     <button id="tab-prob" role="tab" aria-selected="false">Probabilities</button>
     <button id="tab-data" role="tab" aria-selected="false">Data</button>
   </div>
@@ -130,9 +131,17 @@
         <button data-m="mean" aria-pressed="true">Mean</button><button data-m="median" aria-pressed="false">Median</button><button data-m="mode" aria-pressed="false">Mode</button>
       </div>
     </div>
-    <div class="ctl fwd-only">
+    <div class="ctl cad-ctl" id="cadenceCtl">
       <label class="h">Cadence</label>
       <div class="seg" id="cadence"><button data-c="1" aria-pressed="true">Monthly</button><button data-c="3" aria-pressed="false">Quarterly</button><button data-c="evt0" aria-pressed="false">Event day</button><button data-c="evt1" aria-pressed="false">Day before</button></div>
+    </div>
+    <div class="ctl risk-only hidden">
+      <label class="h">Measure</label>
+      <div class="seg" id="riskMeasure"><button data-r="sd" aria-pressed="true">Uncertainty</button><button data-r="skew" aria-pressed="false">Skewness</button></div>
+    </div>
+    <div class="ctl risk-only hidden">
+      <label class="h">View</label>
+      <div class="seg" id="riskView"><button data-w="horizon" aria-pressed="true">By horizon</button><button data-w="time" aria-pressed="false">Over time</button></div>
     </div>
     <div class="ctl notdata">
       <label class="h" for="minVol">Min contracts/day</label>
@@ -221,6 +230,11 @@
     <p id="cap-term" class="cap"></p>
   </section>
 
+  <section id="panel-risk" class="panel hidden">
+    <div id="chart-risk" class="chart tall"></div>
+    <p id="cap-risk" class="cap"></p>
+  </section>
+
   <section id="panel-prob" class="panel hidden">
     <div id="probBuilder" class="probbuild"></div>
     <div id="chart-prob" class="chart tall"></div>
@@ -298,6 +312,7 @@
   const REALIZED_FREQ={fed_levels:"day",gdp_end_of_year:"year"}; // others: month
 
   const state={tab:"fwd",series:null,momentFwd:"mean",cadence:"1",momentTerm:"mean",contract:null,di:0,
+    riskMeasure:"sd",riskView:"horizon",
     minVol:0,lowVol:"carry",dataMode:"summary",builderCols:[],tsShowExpired:false,dataShowExpired:false,
     show:{mean:true,median:true,mode:true,band:true,vol:true},termSnaps:["latest","m1","m3"],
     dataSeries:{},cols:{mean:true,median:true,mode:true,sd:true,vol:true},data:{},dist:{},
@@ -319,14 +334,14 @@
   function prep(moments,realized,expiryRows){
     const byContract={};let momMin=Infinity,momMax=-Infinity;
     for(const r of moments){const c=r.contract_preamble;
-      if(!byContract[c])byContract[c]={t:[],ds:[],mean:[],median:[],mode:[],sd:[],vol:[],expiry:r.expiry_date||null};
+      if(!byContract[c])byContract[c]={t:[],ds:[],mean:[],median:[],mode:[],sd:[],skew:[],vol:[],expiry:r.expiry_date||null};
       const o=byContract[c],t=parseD(r.date);
       o.t.push(t);o.ds.push(r.date);o.mean.push(r.mean);o.median.push(r.median);o.mode.push(r.mode);
-      o.sd.push(r.variance!=null&&r.variance>=0?Math.sqrt(r.variance):null);o.vol.push(r.daily_volume);
+      o.sd.push(r.variance!=null&&r.variance>=0?Math.sqrt(r.variance):null);o.skew.push(r.skewness);o.vol.push(r.daily_volume);
       if(!o.expiry&&r.expiry_date)o.expiry=r.expiry_date;
       if(t<momMin)momMin=t;if(t>momMax)momMax=t;}
     for(const c in byContract){const o=byContract[c],idx=o.t.map((_,i)=>i).sort((a,b)=>o.t[a]-o.t[b]);
-      for(const k of ["t","ds","mean","median","mode","sd","vol"])o[k]=idx.map(i=>o[k][i]);}
+      for(const k of ["t","ds","mean","median","mode","sd","skew","vol"])o[k]=idx.map(i=>o[k][i]);}
     // override the inferred expiry with the true contract close where available
     const emap={}; for(const r of (expiryRows||[])){ if(r.expiry) emap[r.contract_preamble]=String(r.expiry).slice(0,10); }
     for(const c in byContract){ if(emap[c]) byContract[c].expiry=emap[c]; }
@@ -547,6 +562,66 @@
     renderChips();
   }
 
+  // ================= UNCERTAINTY & SKEW (implied s.d. and asymmetry)
+  // Reuses forwardCurves()/valueAsOf(), which are generic over which moment
+  // column to read — here "sd" (implied standard deviation) or "skew".
+  function renderRisk(){
+    const d=state.data[state.series],meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"};
+    const measure=state.riskMeasure, isSk=measure==="skew";
+    const uUnit=isSk?"":(meta.unit||"");
+    const yTitle=isSk?"Skewness  (mean − median, scaled)":`Implied s.d.${meta.unit?" ("+meta.unit+")":""}`;
+    const grid=cssv("--grid"),traces=[],anns=[],shapes=[];
+    let xIsDate=true, xTitle="", cadTxt="";
+
+    if(state.riskView==="horizon"){
+      // term structure of the moment: x = contract target date, one line per as-of snapshot
+      const curves=forwardCurves(d,measure,state.cadence,state.minVol),n=curves.length;
+      curves.forEach((cur,i)=>{
+        const isLatest=i===0,age=n<=1?0:i/(n-1);
+        const color=isLatest?cssv("--s2"):`rgba(138,147,160,${Math.max(0.10,0.42*(1-age))})`;
+        traces.push({type:"scatter",mode:isLatest?"lines+markers":"lines",x:cur.pts.map(p=>p.x),y:cur.pts.map(p=>p.v),
+          line:{color,width:isLatest?2.4:1},marker:{size:isLatest?4:1,color},
+          hovertemplate:`as of ${isoDay(cur.T)}<br>%{x|%b %Y}: %{y:.2f}${uUnit}<extra></extra>`});});
+      if(curves.length){const lp=curves[0].pts[curves[0].pts.length-1];anns.push(endLabel(lp.x,lp.v,"current",cssv("--s2")));}
+      xTitle="Contract date";
+      const ev=EVENT_NAME[state.series]||"release";
+      cadTxt=state.cadence==="evt0"?`as of each ${ev}`:state.cadence==="evt1"?`as of the day before each ${ev}`:
+        `priced ${state.cadence==="3"?"quarterly":"monthly"}`;
+    } else {
+      // over time: each contract's moment across its own trading life; nearest live one emphasised
+      const cons=contractsSorted(d).filter(c=>d.byContract[c].t.length>=5);
+      const emph=defaultContract(d);
+      cons.slice().reverse().forEach((c,idx)=>{ // oldest first so newest draws on top
+        const o=d.byContract[c],mv=state.minVol;
+        const xs=[],ys=[];
+        for(let i=0;i<o.t.length;i++){
+          const ok=mv<=0||(o.vol[i]!=null&&o.vol[i]>=mv);
+          if(ok&&o[measure][i]!=null){xs.push(o.t[i]);ys.push(o[measure][i]);}}
+        if(xs.length<2)return;
+        const isEmph=c===emph,exp=isExpired(c);
+        const color=isEmph?cssv("--s2"):`rgba(138,147,160,${exp?0.28:0.5})`;
+        traces.push({type:"scatter",mode:"lines",x:xs,y:ys,line:{color,width:isEmph?2.4:1},connectgaps:false,
+          hovertemplate:`${pretty(c)}<br>%{x|%b %e, %Y}: %{y:.2f}${uUnit}<extra></extra>`});
+        if(isEmph){const lp=lastPoint(xs,ys);if(lp)anns.push(endLabel(lp.x,lp.y,pretty(c),color));}});
+      xTitle="Trading date";
+      cadTxt="each contract over its life";
+    }
+    if(isSk){ // zero reference + directional cues
+      shapes.push({type:"line",xref:"paper",x0:0,x1:1,y0:0,y1:0,line:{color:cssv("--muted"),width:1,dash:"dot"}});
+      anns.push({xref:"paper",yref:"paper",x:0.004,y:0.985,text:"↑ upside-skewed",showarrow:false,xanchor:"left",font:{size:10.5,color:cssv("--muted")}});
+      anns.push({xref:"paper",yref:"paper",x:0.004,y:0.02,text:"↓ downside-skewed",showarrow:false,xanchor:"left",font:{size:10.5,color:cssv("--muted")}});
+    }
+    Plotly.react("chart-risk",traces,baseLayout({annotations:anns,shapes,margin:{t:10,r:78,b:34,l:54},
+      xaxis:{type:"date",gridcolor:grid,showgrid:false,zeroline:false,showline:false,ticks:"outside",ticklen:4,tickcolor:grid,title:{text:xTitle,font:{size:11}},automargin:true},
+      yaxis:{title:{text:yTitle,font:{size:11.5}},gridcolor:grid,zeroline:false,showline:false,rangemode:isSk?"normal":"tozero"}}),CFG_PLOT);
+    const what=isSk
+      ?`Skewness of the market-implied distribution (positive = upside tail, negative = downside; a nonparametric (mean−median)/MAD measure in [−1, 1]).`
+      :`Market-implied uncertainty = the standard deviation of the day's distribution${meta.unit?` (in ${meta.unit})`:""}. A wider distribution ⇒ more disagreement about the outcome; it typically shrinks toward zero as a release nears. IQR would tell a similar story.`;
+    $("cap-risk").innerHTML=`${meta.label} — ${what} ${state.riskView==="horizon"
+      ?`Each line is the whole term structure across contract dates, ${cadTxt}; orange = current, paler = earlier snapshots.`
+      :`One line per contract across its trading life; orange = nearest live contract.`}`+(state.minVol>0?` Days under ${state.minVol} contracts excluded.`:``);
+  }
+
   // ================= DATA TABLE (+ sparklines + CSV)
   // ---- sparklines: Tufte start/end + min/max markers, with hover readout ----
   // sparkline on a SHARED time axis [t0,t1] so expired contracts end left of live ones
@@ -762,11 +837,12 @@
   function renderDataTab(){ return state.dataMode==="builder" ? renderBuilder() : renderData(); }
   function render(){if(!state.data[state.series]&&state.tab!=="data"&&state.tab!=="prob")return;
     if(state.tab==="fwd")renderForward();else if(state.tab==="ts")renderTimeAll();else if(state.tab==="term")renderTerm();
+    else if(state.tab==="risk")renderRisk();
     else if(state.tab==="prob")renderProb();else renderDataTab();}
   async function fetchSeries(k){
     if(state.data[k])return state.data[k];
     const [moments,realized]=await Promise.all([
-      pgFetch("daily_moments",`select=contract_preamble,date,expiry_date,mean,median,mode,variance,daily_volume&series=eq.${k}`),
+      pgFetch("daily_moments",`select=contract_preamble,date,expiry_date,mean,median,mode,variance,skewness,daily_volume&series=eq.${k}`),
       pgFetch("underlying_history",`select=date,value&series=eq.${k}&order=date`)]);
     // true per-contract expiry from Kalshi metadata; tolerate its absence (older DBs)
     let expiryRows=[];
@@ -817,12 +893,14 @@
     render();
   }
   function selectTab(tab){state.tab=tab;
-    for(const t of ["fwd","ts","term","prob","data"])$(`tab-${t}`).setAttribute("aria-selected",t===tab);
+    for(const t of ["fwd","ts","term","risk","prob","data"])$(`tab-${t}`).setAttribute("aria-selected",t===tab);
     document.querySelectorAll(".notdata").forEach(e=>e.classList.toggle("hidden",tab==="data"||tab==="prob"));
     document.querySelectorAll(".fwd-only").forEach(e=>e.classList.toggle("hidden",tab!=="fwd"));
     document.querySelectorAll(".ts-only").forEach(e=>e.classList.toggle("hidden",tab!=="ts"));
     document.querySelectorAll(".term-only").forEach(e=>e.classList.toggle("hidden",tab!=="term"));
+    document.querySelectorAll(".risk-only").forEach(e=>e.classList.toggle("hidden",tab!=="risk"));
     document.querySelectorAll(".data-only").forEach(e=>e.classList.toggle("hidden",tab!=="data"));
+    $("cadenceCtl").classList.toggle("hidden",!(tab==="fwd"||tab==="risk"));
     if(state.data[state.series]||tab==="data"||tab==="prob")showTab();
   }
   function segWire(id,key,cast){$(id).addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
@@ -847,6 +925,7 @@
     $("tab-fwd").addEventListener("click",()=>selectTab("fwd"));
     $("tab-ts").addEventListener("click",()=>selectTab("ts"));
     $("tab-term").addEventListener("click",()=>selectTab("term"));
+    $("tab-risk").addEventListener("click",()=>selectTab("risk"));
     $("tab-prob").addEventListener("click",()=>selectTab("prob"));
     $("tab-data").addEventListener("click",()=>selectTab("data"));
     $("probBuilder").addEventListener("change",e=>{const row=e.target.closest(".condrow");if(!row)return;
@@ -862,6 +941,10 @@
       else if(b.dataset.act==="rm"){state.prob.conds.splice(1,1);}
       showProb();});
     segWire("momentFwd","momentFwd",v=>v);segWire("cadence","cadence",v=>v);segWire("momentTerm","momentTerm",v=>v);
+    function riskSeg(id,key,attr){$(id).addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+      [...$(id).children].forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");
+      state[key]=b.dataset[attr];if(state.data[state.series])renderRisk();});}
+    riskSeg("riskMeasure","riskMeasure","r");riskSeg("riskView","riskView","w");
     $("minVol").addEventListener("input",e=>{state.minVol=Math.max(0,Math.floor(+e.target.value||0));if(state.data[state.series])render();});
     $("lowVol").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
       [...$("lowVol").children].forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");
@@ -897,7 +980,8 @@
     $("dlCsv").addEventListener("click",downloadCSV);
     $("foot").innerHTML=`Forward curves: pale = past market-implied paths, orange = current, black = realized (FRED); cadence can step monthly/quarterly or land on each release/meeting (day-of or day-before). `+
       `Time series: one contract's moments over its life with the ±1 s.d. band and the day's probability distribution. `+
-      `Term structure: up to four as-of dates. Data: browse contracts with sparklines and download the full daily history as CSV. `+
+      `Term structure: up to four as-of dates. Uncertainty &amp; skew: the implied standard deviation and asymmetry of the distribution, by horizon or over time. `+
+      `Data: browse contracts with sparklines and download the full daily history as CSV. `+
       `“Min contracts/day” sets a liquidity floor: thin days are excluded from the curves and drawn dashed (held or as-traded) on the time series. `+
       `Contract target dates are the nominal period mid-month; as-of matching uses the nearest qualifying observation within ~6 weeks.`;
     loadSeriesSafe();

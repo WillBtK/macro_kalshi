@@ -116,6 +116,7 @@
     <button id="tab-ts"   role="tab" aria-selected="false">Time series</button>
     <button id="tab-term" role="tab" aria-selected="false">Term structure</button>
     <button id="tab-risk" role="tab" aria-selected="false">Uncertainty &amp; skew</button>
+    <button id="tab-es"   role="tab" aria-selected="false">Event study</button>
     <button id="tab-prob" role="tab" aria-selected="false">Probabilities</button>
     <button id="tab-data" role="tab" aria-selected="false">Data</button>
   </div>
@@ -146,6 +147,14 @@
     <div class="ctl risk-only cmat-ctl hidden" id="riskNoutCtl">
       <label class="h">Contracts out</label>
       <div class="chips" id="riskNout" aria-label="Constant-maturity horizon (contracts out)"></div>
+    </div>
+    <div class="ctl es-only hidden">
+      <label class="h">Measure</label>
+      <div class="seg" id="esMeasure"><button data-r="mean" aria-pressed="true">Mean</button><button data-r="sd" aria-pressed="false">Uncertainty</button><button data-r="skew" aria-pressed="false">Skew</button></div>
+    </div>
+    <div class="ctl es-only hidden">
+      <label class="h">View</label>
+      <div class="seg" id="esView"><button data-w="moves" aria-pressed="true">Event-day moves</button><button data-w="into" aria-pressed="false">Into the release</button></div>
     </div>
     <div class="ctl notdata">
       <label class="h" for="minVol">Min contracts/day</label>
@@ -239,6 +248,11 @@
     <p id="cap-risk" class="cap"></p>
   </section>
 
+  <section id="panel-es" class="panel hidden">
+    <div id="chart-es" class="chart tall"></div>
+    <p id="cap-es" class="cap"></p>
+  </section>
+
   <section id="panel-prob" class="panel hidden">
     <div id="probBuilder" class="probbuild"></div>
     <div id="chart-prob" class="chart tall"></div>
@@ -329,7 +343,7 @@
   const REALIZED_FREQ={fed_levels:"day",gdp_end_of_year:"year",gdp_quarterly:"quarter"}; // others: month
 
   const state={tab:"fwd",series:null,momentFwd:"mean",cadence:"1",momentTerm:"mean",contract:null,di:0,
-    riskMeasure:"sd",riskView:"horizon",riskNout:[4],
+    riskMeasure:"sd",riskView:"horizon",riskNout:[4],esMeasure:"mean",esView:"moves",
     minVol:0,lowVol:"carry",dataMode:"summary",builderCols:[],tsShowExpired:false,dataShowExpired:false,
     show:{mean:true,median:true,mode:true,band:true,vol:true},termSnaps:["latest","m1","m3"],
     dataSeries:{},cols:{mean:true,median:true,mode:true,sd:true,vol:true},data:{},dist:{},
@@ -711,6 +725,92 @@
     $("cap-risk").innerHTML=`${meta.label} — ${what} ${viewTxt}`+(state.minVol>0?` Days under ${state.minVol} contracts excluded.`:``);
   }
 
+  // ================= EVENT STUDY (reaction of the distribution to releases/meetings)
+  // Event dates are the contracts' own resolution dates (d.eventDates) — i.e. the
+  // FOMC meeting / data release each series settles on. No external shock series
+  // needed: the reaction is read straight off how the market's own distribution
+  // moves around each event. First-release outcomes (d.firstRel) supply the
+  // realized value for the forecast-error view.
+  function contractRealized(d,c){
+    const o=d.byContract[c]; if(!o)return null;
+    const ref=o.expiry?parseD(o.expiry):contractDate(c); if(ref==null)return null;
+    let best=null,bd=Infinity;
+    for(const r of (d.firstRel||[])){const key=r.rel!=null?r.rel:r.t;const dd=Math.abs(key-ref);if(dd<bd){bd=dd;best=r;}}
+    return (best&&bd<120*DAY)?best.v:null;
+  }
+  const esVal=(o,i,m)=>m==="sd"?o.sd[i]:m==="skew"?o.skew[i]:o.mean[i];
+  function renderEventStudy(){
+    const d=state.data[state.series],meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"};
+    const m=state.esMeasure,u=meta.unit||"",mv=state.minVol,grid=cssv("--grid");
+    const evName=EVENT_NAME[state.series]||"release";
+    const mLab=m==="sd"?"implied s.d.":m==="skew"?"skewness":"mean";
+    const traces=[],anns=[],shapes=[];
+    if(state.esView==="into"){
+      // event-time average: align every contract to its own resolution (τ = 0)
+      const HZ=90,sum=new Map(),cnt=new Map();
+      for(const c in d.byContract){const o=d.byContract[c];if(!o.expiry)continue;const R=parseD(o.expiry);
+        const realized=m==="mean"?contractRealized(d,c):null;
+        if(m==="mean"&&realized==null)continue;
+        for(let i=0;i<o.t.length;i++){
+          if(mv>0&&!(o.vol[i]!=null&&o.vol[i]>=mv))continue;
+          const tau=Math.round((o.t[i]-R)/DAY);if(tau>1||tau<-HZ)continue;
+          let v=esVal(o,i,m);if(v==null)continue;
+          if(m==="mean")v=Math.abs(v-realized);
+          sum.set(tau,(sum.get(tau)||0)+v);cnt.set(tau,(cnt.get(tau)||0)+1);}}
+      const taus=[...sum.keys()].filter(t=>cnt.get(t)>=2).sort((a,b)=>a-b);
+      if(!taus.length){Plotly.react("chart-es",[],baseLayout({annotations:[{text:"Not enough resolved contracts yet for an event-time average.",showarrow:false,font:{color:cssv("--muted")}}],xaxis:{visible:false},yaxis:{visible:false}}),CFG_PLOT);
+        $("cap-es").textContent=`${meta.label}. The event-time view needs contracts that have already resolved.`;return;}
+      const xs=taus,ys=taus.map(t=>sum.get(t)/cnt.get(t));
+      traces.push({type:"scatter",mode:"lines",x:xs,y:ys,line:{color:cssv("--s1"),width:2.4},
+        hovertemplate:`%{x} d to ${evName}<br>${mLab}: %{y:.2f}${m==="skew"?"":u}<extra></extra>`});
+      shapes.push({type:"line",x0:0,x1:0,yref:"paper",y0:0,y1:1,line:{color:cssv("--ink"),width:1,dash:"dot"}});
+      anns.push({x:0,y:1,yref:"paper",yanchor:"bottom",xanchor:"right",xshift:-4,text:`${evName}`,showarrow:false,font:{size:11,color:cssv("--ink")}});
+      const yTitle=m==="mean"?`Avg |mean − first release|${u?" ("+u+")":""}`:m==="sd"?`Avg implied s.d.${u?" ("+u+")":""}`:"Avg skewness";
+      Plotly.react("chart-es",traces,baseLayout({annotations:anns,shapes,margin:{t:10,r:20,b:34,l:58},
+        xaxis:{gridcolor:grid,showgrid:false,zeroline:false,showline:false,ticks:"outside",ticklen:4,tickcolor:grid,title:{text:`Trading days relative to ${evName} (0 = event)`,font:{size:11}},automargin:true},
+        yaxis:{title:{text:yTitle,font:{size:11.5}},gridcolor:grid,zeroline:false,showline:false,rangemode:"tozero"}}),CFG_PLOT);
+      const what=m==="mean"?`the average absolute gap between the market-implied mean and the first-reported outcome`
+        :m==="sd"?`the average market-implied uncertainty (s.d.)`:`the average distribution skew`;
+      $("cap-es").innerHTML=`${meta.label} — ${what}, with every contract aligned to its own ${evName} (τ = 0), averaged across all resolved contracts. `+
+        ((m==="mean"||m==="sd")?`It falls toward zero as the ${evName} nears — the market resolving uncertainty into the event.`:``)+
+        (mv>0?` Days under ${mv} contracts excluded.`:``);
+    } else {
+      // event-day moves: per-event jump of the nearest SURVIVING contract (same
+      // contract observed just before and just after the event — no roll artifact)
+      const events=(d.eventDates||[]).filter(E=>E>=d.momMin-5*DAY&&E<=d.momMax+5*DAY);
+      const xs=[],ys=[],colors=[],text=[],WIN=12*DAY;let absSum=0,absN=0;
+      for(const E of events){
+        let pick=null,pd=Infinity;
+        for(const c in d.byContract){const o=d.byContract[c];const ref=o.expiry?parseD(o.expiry):contractDate(c);
+          if(ref==null||ref<=E+2*DAY)continue;const dd=ref-E;if(dd<pd){pd=dd;pick=c;}}
+        if(!pick)continue;
+        const o=d.byContract[pick];let ib=-1,ia=-1;
+        for(let i=0;i<o.t.length;i++){const ok=mv<=0||(o.vol[i]!=null&&o.vol[i]>=mv);if(!ok)continue;
+          if(o.t[i]<=E){if(ib<0||o.t[i]>o.t[ib])ib=i;}else if(ia<0){ia=i;}}
+        if(ib<0||ia<0)continue;
+        if(Math.abs(o.t[ib]-E)>WIN||Math.abs(o.t[ia]-E)>WIN)continue;
+        const vb=esVal(o,ib,m),va=esVal(o,ia,m);if(vb==null||va==null)continue;
+        const dv=va-vb;
+        xs.push(E);ys.push(dv);colors.push(dv>=0?cssv("--s1"):cssv("--s2"));text.push(pretty(pick));
+        absSum+=Math.abs(dv);absN++;}
+      if(!xs.length){Plotly.react("chart-es",[],baseLayout({annotations:[{text:`No paired before/after observations around ${evName} dates yet.`,showarrow:false,font:{color:cssv("--muted")}}],xaxis:{visible:false},yaxis:{visible:false}}),CFG_PLOT);
+        $("cap-es").textContent=`${meta.label}. No ${evName} reactions found in range.`;return;}
+      traces.push({type:"bar",x:xs,y:ys,marker:{color:colors},width:8*DAY,customdata:text,
+        hovertemplate:`%{x|%b %e, %Y} · ${evName}<br>%{customdata}<br>Δ ${mLab}: %{y:+.2f}${m==="skew"?"":u}<extra></extra>`});
+      shapes.push({type:"line",xref:"paper",x0:0,x1:1,y0:0,y1:0,line:{color:cssv("--muted"),width:1}});
+      let bi=0;ys.forEach((v,i)=>{if(Math.abs(v)>Math.abs(ys[bi]))bi=i;});
+      anns.push({x:xs[bi],y:ys[bi],yanchor:ys[bi]>=0?"bottom":"top",yshift:ys[bi]>=0?2:-2,text:`${fmt(ys[bi],2)}`,showarrow:false,font:{size:10.5,color:cssv("--ink2")}});
+      const yTitle=`Δ ${mLab} across the ${evName}${(u&&m!=="skew")?" ("+u+")":""}`;
+      Plotly.react("chart-es",traces,baseLayout({annotations:anns,shapes,bargap:0.4,margin:{t:10,r:18,b:24,l:58},
+        xaxis:{type:"date",gridcolor:grid,showgrid:false,zeroline:false,showline:false,ticks:"outside",ticklen:4,tickcolor:grid},
+        yaxis:{title:{text:yTitle,font:{size:11.5}},gridcolor:grid,zeroline:false,showline:false}}),CFG_PLOT);
+      const avg=absN?absSum/absN:0;
+      $("cap-es").innerHTML=`${meta.label} — each bar is the change in the nearest surviving contract's ${mLab} from the last trading day before a ${evName} to the first after: the market's reaction to that release/meeting. `+
+        `Average absolute move: <b>${fmt(avg,2)}${m==="skew"?"":u}</b> across ${absN} ${evName}${absN===1?"":"s"}. `+
+        `<span style="color:var(--s1)">■</span> up, <span style="color:var(--s2)">■</span> down.`+(mv>0?` Days under ${mv} contracts excluded.`:``);
+    }
+  }
+
   // ================= DATA TABLE (+ sparklines + CSV)
   // ---- sparklines: Tufte start/end + min/max markers, with hover readout ----
   // sparkline on a SHARED time axis [t0,t1] so expired contracts end left of live ones
@@ -926,7 +1026,7 @@
   function renderDataTab(){ return state.dataMode==="builder" ? renderBuilder() : renderData(); }
   function render(){if(!state.data[state.series]&&state.tab!=="data"&&state.tab!=="prob")return;
     if(state.tab==="fwd")renderForward();else if(state.tab==="ts")renderTimeAll();else if(state.tab==="term")renderTerm();
-    else if(state.tab==="risk")renderRisk();
+    else if(state.tab==="risk")renderRisk();else if(state.tab==="es")renderEventStudy();
     else if(state.tab==="prob")renderProb();else renderDataTab();}
   async function fetchSeries(k){
     if(state.data[k])return state.data[k];
@@ -989,12 +1089,13 @@
     render();
   }
   function selectTab(tab){state.tab=tab;
-    for(const t of ["fwd","ts","term","risk","prob","data"])$(`tab-${t}`).setAttribute("aria-selected",t===tab);
+    for(const t of ["fwd","ts","term","risk","es","prob","data"])$(`tab-${t}`).setAttribute("aria-selected",t===tab);
     document.querySelectorAll(".notdata").forEach(e=>e.classList.toggle("hidden",tab==="data"||tab==="prob"));
     document.querySelectorAll(".fwd-only").forEach(e=>e.classList.toggle("hidden",tab!=="fwd"));
     document.querySelectorAll(".ts-only").forEach(e=>e.classList.toggle("hidden",tab!=="ts"));
     document.querySelectorAll(".term-only").forEach(e=>e.classList.toggle("hidden",tab!=="term"));
     document.querySelectorAll(".risk-only").forEach(e=>e.classList.toggle("hidden",tab!=="risk"));
+    document.querySelectorAll(".es-only").forEach(e=>e.classList.toggle("hidden",tab!=="es"));
     document.querySelectorAll(".data-only").forEach(e=>e.classList.toggle("hidden",tab!=="data"));
     $("cadenceCtl").classList.toggle("hidden",!(tab==="fwd"||tab==="risk"));
     if(state.data[state.series]||tab==="data"||tab==="prob")showTab();
@@ -1022,6 +1123,7 @@
     $("tab-ts").addEventListener("click",()=>selectTab("ts"));
     $("tab-term").addEventListener("click",()=>selectTab("term"));
     $("tab-risk").addEventListener("click",()=>selectTab("risk"));
+    $("tab-es").addEventListener("click",()=>selectTab("es"));
     $("tab-prob").addEventListener("click",()=>selectTab("prob"));
     $("tab-data").addEventListener("click",()=>selectTab("data"));
     $("probBuilder").addEventListener("change",e=>{const row=e.target.closest(".condrow");if(!row)return;
@@ -1041,6 +1143,10 @@
       [...$(id).children].forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");
       state[key]=b.dataset[attr];if(state.data[state.series])renderRisk();});}
     riskSeg("riskMeasure","riskMeasure","r");riskSeg("riskView","riskView","w");
+    function esSeg(id,key,attr){$(id).addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+      [...$(id).children].forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");
+      state[key]=b.dataset[attr];if(state.data[state.series])renderEventStudy();});}
+    esSeg("esMeasure","esMeasure","r");esSeg("esView","esView","w");
     $("riskNout").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;
       const N=+b.dataset.n,i=state.riskNout.indexOf(N);
       if(i>=0){if(state.riskNout.length>1)state.riskNout.splice(i,1);}   // keep at least one
@@ -1082,6 +1188,7 @@
     $("foot").innerHTML=`Forward curves: grey = past market-implied paths, orange = current (always the latest observation), black = realized (FRED); cadence can step monthly/quarterly or land on each release/meeting (day-of or day-before). `+
       `Time series: one contract's moments over its life with the ±1 s.d. band and the day's probability distribution. `+
       `Term structure: up to four as-of dates. Uncertainty &amp; skew: the implied standard deviation and asymmetry of the distribution, by horizon or over time. `+
+      `Event study: how the distribution reacts to each release/meeting — per-event moves of the nearest surviving contract, or every contract aligned to its own resolution (no external shock data; events are the contracts' own settlement dates). `+
       `Data: browse contracts with sparklines and download the full daily history as CSV. `+
       `“Min contracts/day” sets a liquidity floor: thin days are excluded from the curves and drawn dashed (held or as-traded) on the time series. `+
       `Contract target dates are the nominal period mid-month; as-of matching uses the nearest qualifying observation within ~6 weeks.`;

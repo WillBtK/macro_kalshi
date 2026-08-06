@@ -60,6 +60,34 @@ def autogenerate_kalshi_tickers(series_ticker):
 
     return list(tickers)
 
+
+def discover_markets(series_ticker):
+    """Like autogenerate_kalshi_tickers, but returns per-ticker market metadata
+    including the true close/expiration time (used to record real contract
+    expiries instead of inferring them from the last trade date).
+
+    Returns a list of dicts: {ticker, close_time, expiration_time}.
+    """
+    markets = {}
+
+    events = _paginate(f"{BASE_URL}/events",
+                       {"series_ticker": series_ticker, "limit": 200}, result_key="events")
+    for e in events:
+        for m in _paginate(f"{BASE_URL}/historical/markets",
+                           {"event_ticker": e["event_ticker"], "limit": 100}):
+            markets[m["ticker"]] = m
+
+    # live markets last so their (current) metadata wins on any overlap
+    for m in _paginate(f"{BASE_URL}/markets",
+                       {"series_ticker": series_ticker, "limit": 100}):
+        markets[m["ticker"]] = m
+
+    return [{
+        "ticker": t,
+        "close_time": m.get("close_time"),
+        "expiration_time": m.get("expiration_time") or m.get("expected_expiration_time"),
+    } for t, m in markets.items()]
+
 """
 This file gives some sample sets of tickers that you might want to download.
 

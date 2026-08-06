@@ -85,11 +85,14 @@ def main():
         key, series_ticker = s["key"], s["ticker"]
         print(f"\n=== {key} ({series_ticker}) ===")
         try:
-            tickers = tickers_mod.autogenerate_kalshi_tickers(series_ticker)
+            mkts = tickers_mod.discover_markets(series_ticker)
         except Exception as e:
-            print(f"  ticker discovery failed: {e}; skipping series")
+            print(f"  market discovery failed: {e}; skipping series")
             continue
-        print(f"  {len(tickers)} tickers")
+        tickers = [m["ticker"] for m in mkts]
+        n_close = db.upsert_markets(conn, key, mkts)
+        n_with = sum(1 for m in mkts if m.get("close_time"))
+        print(f"  {len(tickers)} tickers ({n_with} with close_time); markets upserted {n_close}")
 
         hwm = db.latest_created_time(conn, key)
         incremental = hwm is not None

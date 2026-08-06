@@ -12,7 +12,7 @@ window.MK_CONFIG = {
 
   // Display labels + axis units for each series key (matches series_config.py).
   SERIES_META: {
-    fed_levels:                {label: "Fed Funds target (upper)", unit: "%",   axis: "Rate (%)"},
+    fed_levels:                {label: "Fed Funds target (midpoint)", unit: "%", axis: "Target midpoint (%)"},
     headline_cpi_releases:     {label: "Headline CPI (YoY)",       unit: "%",   axis: "YoY (%)"},
     core_cpi_releases:         {label: "Core CPI (YoY)",           unit: "%",   axis: "YoY (%)"},
     headline_cpi_releases_mom: {label: "Headline CPI (MoM)",       unit: "%",   axis: "MoM (%)"},

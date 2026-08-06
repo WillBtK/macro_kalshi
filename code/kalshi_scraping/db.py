@@ -68,6 +68,16 @@ CREATE TABLE IF NOT EXISTS underlying_history (
     value   DOUBLE PRECISION,
     PRIMARY KEY (series, date)
 );
+
+-- Per-market metadata (the true close/expiration times from Kalshi), so the R
+-- conversion can use real contract expiries instead of inferring them from the
+-- last trade date. Private (not exposed to the anon role).
+CREATE TABLE IF NOT EXISTS markets (
+    ticker           TEXT PRIMARY KEY,
+    series           TEXT,
+    close_time       TIMESTAMPTZ,
+    expiration_time  TIMESTAMPTZ
+);
 """
 
 # Expose the derived tables (public market data) read-only to the Supabase
@@ -100,6 +110,22 @@ END $$;
 DO $$
 BEGIN
   EXECUTE 'GRANT SELECT ON daily_moments, daily_distributions, underlying_history TO anon, authenticated';
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- Per-contract true expiry, aggregated from the private markets table and
+-- exposed read-only (the view runs with definer rights, so markets itself
+-- stays private). The front-end uses this for days-to-release, the event
+-- cadence, and the expiry marker — without touching the R moments pipeline.
+DO $$
+BEGIN
+  EXECUTE 'CREATE OR REPLACE VIEW contract_expiry AS
+    SELECT series,
+           regexp_replace(ticker, ''-[^-]*$'', '''') AS contract_preamble,
+           max((close_time AT TIME ZONE ''UTC'')::date) AS expiry
+    FROM markets WHERE close_time IS NOT NULL
+    GROUP BY series, regexp_replace(ticker, ''-[^-]*$'', '''')';
+  EXECUTE 'GRANT SELECT ON contract_expiry TO anon, authenticated';
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 """
@@ -240,6 +266,27 @@ def replace_distributions(conn, series, rows):
                 VALUES %s
             """, [(series,) + r for r in rows], page_size=2000)
     conn.commit()
+
+
+def upsert_markets(conn, series, rows):
+    """rows: list of dicts {ticker, close_time, expiration_time} (ISO8601 strings
+    or None). Upserts market metadata; keeps a prior non-null time if a later
+    payload omits it."""
+    vals = [(r.get("ticker"), series, r.get("close_time"), r.get("expiration_time"))
+            for r in rows if r.get("ticker")]
+    if not vals:
+        return 0
+    with conn.cursor() as cur:
+        execute_values(cur, """
+            INSERT INTO markets (ticker, series, close_time, expiration_time)
+            VALUES %s
+            ON CONFLICT (ticker) DO UPDATE SET
+              series          = EXCLUDED.series,
+              close_time      = COALESCE(EXCLUDED.close_time, markets.close_time),
+              expiration_time = COALESCE(EXCLUDED.expiration_time, markets.expiration_time)
+        """, vals, page_size=1000)
+    conn.commit()
+    return len(vals)
 
 
 def replace_underlying(conn, series, rows):

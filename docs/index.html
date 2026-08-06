@@ -297,7 +297,7 @@
   const CFG_PLOT={responsive:true,displayModeBar:false,displaylogo:false};
 
   // ---------- data prep ----------
-  function prep(moments,realized){
+  function prep(moments,realized,expiryRows){
     const byContract={};let momMin=Infinity,momMax=-Infinity;
     for(const r of moments){const c=r.contract_preamble;
       if(!byContract[c])byContract[c]={t:[],ds:[],mean:[],median:[],mode:[],sd:[],vol:[],expiry:r.expiry_date||null};
@@ -308,6 +308,9 @@
       if(t<momMin)momMin=t;if(t>momMax)momMax=t;}
     for(const c in byContract){const o=byContract[c],idx=o.t.map((_,i)=>i).sort((a,b)=>o.t[a]-o.t[b]);
       for(const k of ["t","ds","mean","median","mode","sd","vol"])o[k]=idx.map(i=>o[k][i]);}
+    // override the inferred expiry with the true contract close where available
+    const emap={}; for(const r of (expiryRows||[])){ if(r.expiry) emap[r.contract_preamble]=String(r.expiry).slice(0,10); }
+    for(const c in byContract){ if(emap[c]) byContract[c].expiry=emap[c]; }
     const real=realized.map(r=>({t:parseD(r.date),v:r.value,ds:r.date})).filter(r=>r.v!=null).sort((a,b)=>a.t-b.t);
     const evset=new Set();for(const c in byContract){const e=byContract[c].expiry;if(e)evset.add(parseD(e));}
     const eventDates=[...evset].sort((a,b)=>a-b);
@@ -663,7 +666,11 @@
     const [moments,realized]=await Promise.all([
       pgFetch("daily_moments",`select=contract_preamble,date,expiry_date,mean,median,mode,variance,daily_volume&series=eq.${k}`),
       pgFetch("underlying_history",`select=date,value&series=eq.${k}&order=date`)]);
-    state.data[k]=prep(moments,realized);return state.data[k];
+    // true per-contract expiry from Kalshi metadata; tolerate its absence (older DBs)
+    let expiryRows=[];
+    try{ expiryRows=await pgFetch("contract_expiry",`select=contract_preamble,expiry&series=eq.${k}`); }
+    catch(e){ console.warn("contract_expiry unavailable:",e.message); }
+    state.data[k]=prep(moments,realized,expiryRows);return state.data[k];
   }
   async function ensureDist(k,c){state.dist[k]=state.dist[k]||{};if(state.dist[k][c])return;
     const rows=await pgFetch("daily_distributions",`select=date,strike,probability&series=eq.${k}&contract_preamble=eq.${encodeURIComponent(c)}&order=date,strike`);

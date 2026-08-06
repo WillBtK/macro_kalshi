@@ -65,32 +65,6 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-      # TEMPORARY: print the ticker/strike structure of the two new series so we
-      # can design their R conversion. Removed once step 2 is wired up.
-      - name: Inspect new-series structure (temporary)
-        if: always()
-        run: |
-          python3 - <<'PY'
-          import csv, os, collections, re
-          for key in ["gdp_quarterly", "nonfarm_payrolls"]:
-              fn = f"data/trade_level_data/trade_level_data_{key}.csv"
-              if not os.path.exists(fn):
-                  print(f"=== {key}: MISSING {fn} ==="); continue
-              tk = collections.Counter(); strikes = set(); n = 0
-              with open(fn) as f:
-                  for r in csv.DictReader(f):
-                      n += 1; t = r["ticker"]; tk[t] += 1
-                      m = re.search(r"[^-]+$", t)
-                      if m: strikes.add(m.group(0))
-              print(f"=== {key}: {n} trades, {len(tk)} distinct tickers ===")
-              for t in list(tk)[:15]:
-                  print("  ticker:", t)
-              def sk(s):
-                  m = re.search(r"-?\d+\.?\d*", s); return float(m.group(0)) if m else 1e18
-              ss = sorted(strikes, key=sk)
-              print("  distinct strike suffixes (sorted):", ss[:40])
-          PY
-
       # -----------------------
       # R setup + convert
       # -----------------------
@@ -152,3 +126,36 @@ jobs:
           else
             echo "No keepalive commit needed."
           fi
+
+      # TEMPORARY: print the ticker/strike structure of the two new series so we
+      # can design their R conversion. Placed LAST so its output is in the log
+      # tail (get_job_logs is tail-only). Removed once step 2 is wired up.
+      - name: Inspect new-series structure (temporary)
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import csv, os, collections, re
+          for key in ["gdp_quarterly", "nonfarm_payrolls"]:
+              fn = f"data/trade_level_data/trade_level_data_{key}.csv"
+              print(f"\n########## {key} ##########")
+              if not os.path.exists(fn):
+                  print(f"MISSING {fn}"); continue
+              tk = collections.Counter(); n = 0
+              with open(fn) as f:
+                  for r in csv.DictReader(f):
+                      n += 1; tk[r["ticker"]] += 1
+              print(f"{n} trades, {len(tk)} distinct tickers")
+              # show a spread of example full tickers
+              for t in list(tk)[:25]:
+                  print("  ticker:", t)
+              # group by preamble (everything before the last '-') to see the
+              # strike-suffix format per contract
+              byp = collections.defaultdict(set)
+              for t in tk:
+                  pre = t.rsplit("-", 1)[0]
+                  suf = t.rsplit("-", 1)[-1]
+                  byp[pre].add(suf)
+              for pre in list(byp)[:8]:
+                  sufs = sorted(byp[pre])
+                  print(f"  preamble {pre!r}: {len(sufs)} suffixes -> {sufs[:20]}")
+          PY

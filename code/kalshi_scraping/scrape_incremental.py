@@ -84,15 +84,20 @@ def main():
     for s in SERIES:
         key, series_ticker = s["key"], s["ticker"]
         print(f"\n=== {key} ({series_ticker}) ===")
+        # Market discovery can fail transiently (Kalshi rate-limits, network
+        # blips). When it does, DON'T skip the series: fall back to whatever
+        # trades are already stored so the CSV export below still runs and the
+        # R conversion never fails for lack of an input file. Only new-trade
+        # fetching is skipped this run; the next run picks the series back up.
+        tickers = []
         try:
             mkts = tickers_mod.discover_markets(series_ticker)
+            tickers = [m["ticker"] for m in mkts]
+            n_close = db.upsert_markets(conn, key, mkts)
+            n_with = sum(1 for m in mkts if m.get("close_time"))
+            print(f"  {len(tickers)} tickers ({n_with} with close_time); markets upserted {n_close}")
         except Exception as e:
-            print(f"  market discovery failed: {e}; skipping series")
-            continue
-        tickers = [m["ticker"] for m in mkts]
-        n_close = db.upsert_markets(conn, key, mkts)
-        n_with = sum(1 for m in mkts if m.get("close_time"))
-        print(f"  {len(tickers)} tickers ({n_with} with close_time); markets upserted {n_close}")
+            print(f"  market discovery failed: {e}; exporting stored trades only")
 
         hwm = db.latest_created_time(conn, key)
         incremental = hwm is not None
@@ -110,7 +115,8 @@ def main():
             time.sleep(0.2 if incremental else 1.0)
         print(f"  upserted {added} new trades")
 
-        # export full series history to the CSV the R conversion reads
+        # export full series history to the CSV the R conversion reads. Runs
+        # even when discovery failed, so the pipeline degrades gracefully.
         out_path = os.path.join(TRADES_DIR, s["trades"])
         n = db.export_trades_csv(conn, key, out_path)
         print(f"  exported {n} rows -> {out_path}")

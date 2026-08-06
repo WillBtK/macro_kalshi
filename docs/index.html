@@ -571,8 +571,14 @@
     const grid=cssv("--grid");
     if(!dist||!dist.byDate[date]){Plotly.react("hist",[],baseLayout({annotations:[{text:"No distribution for this day.",showarrow:false,font:{color:cssv("--muted")}}],xaxis:{visible:false},yaxis:{visible:false}}),CFG_PLOT);return;}
     const strikes=dist.strikes,pm=dist.byDate[date],probs=strikes.map(s=>pm[s]||0);
-    let lo=0,hi=strikes.length-1;while(lo<hi&&probs[lo]<0.05)lo++;while(hi>lo&&probs[hi]<0.05)hi--;
-    lo=Math.max(0,lo-1);hi=Math.min(strikes.length-1,hi+1);
+    // Trim only EMPTY leading/trailing bins; keep interior gaps. A 0% bin between
+    // two populated strikes (e.g. 0.4 when 0.3 and 0.5 have mass) still shows, but
+    // everything below the first / above the last populated strike is dropped for
+    // that date. "Empty" = effectively zero probability mass.
+    const EPS=1e-9;
+    let lo=0,hi=strikes.length-1;
+    while(lo<hi&&!(probs[lo]>EPS))lo++;
+    while(hi>lo&&!(probs[hi]>EPS))hi--;
     const xs=strikes.slice(lo,hi+1),ys=probs.slice(lo,hi+1);
     let mi=0;ys.forEach((p,i)=>{if(p>ys[mi])mi=i;});
     const colors=ys.map((_,i)=>i===mi?cssv("--s2"):"rgba(138,147,160,0.55)");

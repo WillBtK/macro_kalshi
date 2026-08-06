@@ -288,7 +288,16 @@
 
   const MONARR=["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
   const MON={JAN:"January",FEB:"February",MAR:"March",APR:"April",MAY:"May",JUN:"June",JUL:"July",AUG:"August",SEP:"September",OCT:"October",NOV:"November",DEC:"December"};
-  function cmeta(c){let m=c.match(/-(\d{2})([A-Z]{3})$/);
+  // Quarterly GDP tickers are dated by the release/quarter-end date, not the
+  // quarter: map that month → [quarter, year-offset]. Handles both the current
+  // release-date naming (JAN→Q4 prior yr, APR→Q1, JUL→Q2, OCT→Q3) and the legacy
+  // quarter-end naming (MAR→Q1, JUN→Q2, SEP→Q3, DEC→Q4).
+  const GDPQ={JAN:[4,-1],DEC:[4,0],MAR:[1,0],APR:[1,0],JUN:[2,0],JUL:[2,0],SEP:[3,0],OCT:[3,0]};
+  function cmeta(c){
+    let g=c.match(/^(?:KX)?GDP-(\d{2})([A-Z]{3})\d{2}$/);
+    if(g&&GDPQ[g[2]]){const[q,off]=GDPQ[g[2]],y=2000+ +g[1]+off,mid=[1,4,7,10][q-1];
+      return{label:`Q${q} ${y}`,key:y*12+mid,annual:false,quarter:true};}
+    let m=c.match(/-(\d{2})([A-Z]{3})$/);
     if(m&&MON[m[2]]!==undefined){const y=2000+ +m[1];return{label:`${MON[m[2]]} ${y}`,key:y*12+MONARR.indexOf(m[2]),annual:false};}
     m=c.match(/-(\d{4})$/);if(m)return{label:`${+m[1]}`,key:+m[1]*12,annual:true};
     m=c.match(/-(\d{2})$/);if(m){const y=2000+ +m[1];return{label:`${y}`,key:y*12,annual:true};}
@@ -298,7 +307,9 @@
   // contracts): a monthly contract expires once its target month is past; an
   // annual contract once its target year is past.
   const _now=new Date(), NOW_MK=_now.getUTCFullYear()*12+_now.getUTCMonth(), NOW_Y=_now.getUTCFullYear();
-  function isExpired(c){const m=cmeta(c);if(m.key<0)return false;return m.annual?(m.key/12<NOW_Y):(m.key<NOW_MK);}
+  // key<0 = ticker we couldn't place in time (e.g. a malformed legacy contract);
+  // treat as expired so it's hidden unless "include expired" is ticked.
+  function isExpired(c){const m=cmeta(c);if(m.key<0)return true;return m.annual?(m.key/12<NOW_Y):(m.key<NOW_MK);}
   const pretty=c=>cmeta(c).label;
   function contractDate(c){const k=cmeta(c).key;if(k<0)return null;return Date.UTC(Math.floor(k/12),k%12,15);}
   const parseD=s=>{const[y,m,d]=s.split("-").map(Number);return Date.UTC(y,m-1,d);};
@@ -310,12 +321,12 @@
   const TS_ORDER=["latest","m1","m3","m6","e2025","e2024"], TS_COLORS=["--s1","--s2","--s3","--s4"];
   const EVENT_NAME={fed_levels:"FOMC meeting",headline_cpi_releases:"CPI release",core_cpi_releases:"CPI release",
     headline_cpi_releases_mom:"CPI release",headline_cpi_end_of_year:"CPI release",gdp_end_of_year:"GDP release",
-    unemployment_releases:"jobs report",nonfarm_payrolls:"jobs report"};
+    unemployment_releases:"jobs report",nonfarm_payrolls:"jobs report",gdp_quarterly:"GDP release"};
   // latest realized-underlying tile: label + how to date-stamp it
   const REALIZED_LABEL={fed_levels:"Fed Funds target, today",headline_cpi_releases:"CPI YoY, latest",core_cpi_releases:"Core CPI YoY, latest",
     headline_cpi_releases_mom:"CPI MoM, latest",headline_cpi_end_of_year:"CPI YoY, latest",gdp_end_of_year:"Real GDP, latest yr",
-    unemployment_releases:"Unemployment, latest",nonfarm_payrolls:"Payrolls Δ, latest"};
-  const REALIZED_FREQ={fed_levels:"day",gdp_end_of_year:"year"}; // others: month
+    unemployment_releases:"Unemployment, latest",nonfarm_payrolls:"Payrolls Δ, latest",gdp_quarterly:"Real GDP q/q, latest"};
+  const REALIZED_FREQ={fed_levels:"day",gdp_end_of_year:"year",gdp_quarterly:"quarter"}; // others: month
 
   const state={tab:"fwd",series:null,momentFwd:"mean",cadence:"1",momentTerm:"mean",contract:null,di:0,
     riskMeasure:"sd",riskView:"horizon",riskNout:[4],

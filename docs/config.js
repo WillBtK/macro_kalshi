@@ -31,5 +31,7 @@ window.MK_CONFIG = {
       spec: "Resolves to the U-3 unemployment rate for the labelled release month."},
     nonfarm_payrolls:          {label: "Nonfarm payrolls (m/m)",   unit: "k",   axis: "Jobs added (thousands, m/m)",
       spec: "Resolves to the monthly change in total nonfarm payroll employment for the labelled release month. Kalshi lists strikes in absolute jobs; values here are in thousands (e.g. 150 = +150,000) to match the FRED realized change."},
+    gdp_quarterly:             {label: "Real GDP (q/q SAAR)",      unit: "%",   axis: "Real GDP q/q SAAR (%)",
+      spec: "Resolves to the seasonally-adjusted annualised quarter-over-quarter real GDP growth rate for the labelled quarter (the BEA advance estimate). Contracts are dated by their release/quarter-end date; the label shows the quarter they resolve to."},
   },
 };

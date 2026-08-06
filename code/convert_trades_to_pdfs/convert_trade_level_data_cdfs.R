@@ -88,10 +88,11 @@ read_data <- function(input_file) {
       # Strip the strike suffix. Handles positive (-T2.5), literal-negative
       # (-T-100000, payrolls) and N-prefixed-negative (-TN0.5, quarterly GDP)
       # encodings so negative-strike rows aren't split into phantom contracts.
-      contract_preamble = str_replace(contract_preamble, "-T-?N?\\d+\\.?\\d*$", ""),
+      contract_preamble = str_replace(contract_preamble, "-T-?N?[0-9]*\\.?[0-9]+$", ""),
       contract_preamble = ifelse(contract_preamble == 'FED-22JULY', 'FED-22JUL', contract_preamble),
-      # Strike: same three encodings; an 'N' prefix means negative.
-      strike = as.numeric(str_replace(str_extract(ticker, "(?<=-T)-?N?\\d+\\.?\\d*$"), "^N", "-"))
+      # Strike: same three encodings; an 'N' prefix means negative. The
+      # [0-9]*\.?[0-9]+ form also tolerates a leading-dot strike like -T.5.
+      strike = as.numeric(str_replace(str_extract(ticker, "(?<=-T)-?N?[0-9]*\\.?[0-9]+$"), "^N", "-"))
     ) %>%
     arrange(contract_preamble, strike, date)
   

@@ -9,12 +9,14 @@
   :root{
     --bg:#ffffff; --panel:#f7f8fa; --line:#e4e7eb; --ink:#14181f; --ink2:#404855;
     --muted:#6b7480; --accent:#0b5ed7; --realized:#14181f;
+    --s1:#0b5ed7; --s2:#e4572e; --s3:#17a398;
     --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   @media (prefers-color-scheme:dark){
     :root{--bg:#0f1115;--panel:#161a20;--line:#272c34;--ink:#eef1f5;--ink2:#c3cad4;
-          --muted:#8b95a1;--accent:#5b9bff;--realized:#eef1f5;}
+          --muted:#8b95a1;--accent:#5b9bff;--realized:#eef1f5;
+          --s1:#5b9bff;--s2:#ff8a5b;--s3:#3ec6b6;}
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
@@ -23,7 +25,12 @@
   header h1{font-size:23px;margin:0 0 6px;letter-spacing:-.01em}
   .lede{color:var(--ink2);font-size:14px;max-width:760px;margin:0 0 4px}
   .lede a{color:var(--accent);text-decoration:none} .lede a:hover{text-decoration:underline}
-  .byline{color:var(--muted);font-size:12.5px;margin:2px 0 22px}
+  .byline{color:var(--muted);font-size:12.5px;margin:2px 0 20px}
+  /* tabs */
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px}
+  .tabs button{font:14px var(--sans);padding:9px 16px;border:0;background:none;color:var(--muted);
+               cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:500}
+  .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
   .controls{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:flex-end;
             background:var(--panel);border:1px solid var(--line);border-radius:12px;
             padding:14px 16px;margin-bottom:18px}
@@ -35,12 +42,16 @@
   .seg button{font:13px var(--sans);padding:7px 13px;border:0;background:var(--bg);color:var(--ink2);cursor:pointer}
   .seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
   .seg button+button{border-left:1px solid var(--line)}
+  .checks{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .checks label{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--ink2);
+                text-transform:none;letter-spacing:0;font-weight:400;cursor:pointer}
+  .checks input{accent-color:var(--accent)}
+  .sw{display:inline-block;width:11px;height:11px;border-radius:2px}
+  .hidden{display:none !important}
   #chart{width:100%;height:520px}
   .cap{color:var(--muted);font-size:12.5px;margin:8px 2px 0}
   .status{padding:40px 12px;text-align:center;color:var(--muted);font-size:14px}
-  .foot{margin-top:26px;padding-top:16px;border-top:1px solid var(--line);
-        color:var(--muted);font-size:12px}
-  .foot code{font-family:var(--mono);font-size:11.5px}
+  .foot{margin-top:26px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
 </style>
 </head>
 <body>
@@ -49,18 +60,23 @@
     <h1>Macro Markets — Kalshi-implied forecasts</h1>
     <p class="lede">Market-implied forecast distributions extracted from Kalshi macro contracts,
       replicating the method of Diercks, Katz &amp; Wright (2026),
-      <a href="https://www.nber.org/papers/w34702" target="_blank" rel="noopener">“Kalshi and the Rise of Macro Markets” (NBER WP 34702)</a>.
-      Each thin line is the market-implied path (the forecast term structure) as priced on a past date;
-      the bold line is what actually happened.</p>
+      <a href="https://www.nber.org/papers/w34702" target="_blank" rel="noopener">“Kalshi and the Rise of Macro Markets” (NBER WP 34702)</a>.</p>
     <p class="byline">Data: Kalshi trades → distributions/moments (this pipeline) + realized outcomes from FRED. Original method: Diercks, Katz &amp; Wright (2026).</p>
   </header>
+
+  <div class="tabs" role="tablist">
+    <button id="tab-fwd" role="tab" aria-selected="true">Forward curves</button>
+    <button id="tab-ts"  role="tab" aria-selected="false">Time series</button>
+  </div>
 
   <div class="controls">
     <div class="ctl">
       <label for="series">Series</label>
       <select id="series"></select>
     </div>
-    <div class="ctl">
+
+    <!-- Forward-curve controls -->
+    <div class="ctl fwd-only">
       <label>Central tendency</label>
       <div class="seg" id="moment">
         <button data-m="mean"   aria-pressed="true">Mean</button>
@@ -68,11 +84,27 @@
         <button data-m="mode"   aria-pressed="false">Mode</button>
       </div>
     </div>
-    <div class="ctl">
+    <div class="ctl fwd-only">
       <label>Forward-curve cadence</label>
       <div class="seg" id="cadence">
         <button data-c="1" aria-pressed="true">Monthly</button>
         <button data-c="3" aria-pressed="false">Quarterly</button>
+      </div>
+    </div>
+
+    <!-- Time-series controls -->
+    <div class="ctl ts-only hidden">
+      <label for="contract">Release / contract</label>
+      <select id="contract"></select>
+    </div>
+    <div class="ctl ts-only hidden">
+      <label>Show</label>
+      <div class="checks" id="tsShow">
+        <label><input type="checkbox" data-k="mean" checked><span class="sw" style="background:var(--s1)"></span>Mean</label>
+        <label><input type="checkbox" data-k="median" checked><span class="sw" style="background:var(--s2)"></span>Median</label>
+        <label><input type="checkbox" data-k="mode" checked><span class="sw" style="background:var(--s3)"></span>Mode</label>
+        <label><input type="checkbox" data-k="band" checked>±1 s.d. band</label>
+        <label><input type="checkbox" data-k="vol" checked>Volume</label>
       </div>
     </div>
   </div>
@@ -81,11 +113,7 @@
   <div id="chart" style="display:none"></div>
   <p id="cap" class="cap"></p>
 
-  <div class="foot">
-    Reads live from Supabase (PostgREST) with a public read-only key; realized underlyings from FRED via the daily pipeline.
-    Forward curves plot each contract’s market-implied <span id="footMoment">mean</span> at its target date, as priced on the labelled as-of date
-    (nearest observation within ~6 weeks). Contract target dates are the nominal period mid-month.
-  </div>
+  <div class="foot" id="foot"></div>
 </div>
 
 <script src="config.js"></script>
@@ -94,6 +122,7 @@
   "use strict";
   const CFG = window.MK_CONFIG;
   const $ = id => document.getElementById(id);
+  const fmt = (v,d=2)=> v==null||isNaN(v) ? "–" : (+v).toFixed(d);
 
   // ---------- PostgREST fetch (paginated) ----------
   async function pgFetch(table, query){
@@ -111,7 +140,7 @@
     return out;
   }
 
-  // ---------- contract-ticker parsing (shared with the offline explorer) ----------
+  // ---------- contract-ticker parsing ----------
   const MONARR=["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
   const MON={JAN:"January",FEB:"February",MAR:"March",APR:"April",MAY:"May",JUN:"June",
              JUL:"July",AUG:"August",SEP:"September",OCT:"October",NOV:"November",DEC:"December"};
@@ -122,180 +151,243 @@
     m=c.match(/-(\d{2})$/); if(m){const y=2000+ +m[1];return{label:`${y}`,key:y*12};}
     return {label:c.replace(/^KX/,""),key:-1};
   }
-  // contract's target period as a plottable date (mid-month of its nominal month/year)
+  const pretty=c=>cmeta(c).label;
   function contractDate(c){const k=cmeta(c).key;if(k<0)return null;return Date.UTC(Math.floor(k/12),k%12,15);}
   const parseD = s => {const [y,m,d]=s.split("-").map(Number);return Date.UTC(y,m-1,d);};
   const addMonths=(t,n)=>{const d=new Date(t);d.setUTCMonth(d.getUTCMonth()+n);return d.getTime();};
   const DAY=864e5;
 
   // ---------- state ----------
-  const state = {series:null, moment:"mean", cadence:1, data:{}};
-  // data[series] = {byContract:{c:{t:[ms],mean:[],median:[],mode:[]}}, realized:[{t,v}], momMin, momMax}
+  const state = {tab:"fwd", series:null, moment:"mean", cadence:1,
+                 contract:null, show:{mean:true,median:true,mode:true,band:true,vol:true}, data:{}};
 
   // ---------- data prep ----------
   function prep(moments, realized){
     const byContract={};
     let momMin=Infinity, momMax=-Infinity;
     for(const r of moments){
-      const c=r.contract_preamble; if(!byContract[c]) byContract[c]={t:[],mean:[],median:[],mode:[]};
-      const t=parseD(r.date);
-      byContract[c].t.push(t);
-      byContract[c].mean.push(r.mean); byContract[c].median.push(r.median); byContract[c].mode.push(r.mode);
+      const c=r.contract_preamble;
+      if(!byContract[c]) byContract[c]={t:[],mean:[],median:[],mode:[],sd:[],vol:[],expiry:r.expiry_date||null};
+      const o=byContract[c], t=parseD(r.date);
+      o.t.push(t); o.mean.push(r.mean); o.median.push(r.median); o.mode.push(r.mode);
+      o.sd.push(r.variance!=null && r.variance>=0 ? Math.sqrt(r.variance) : null);
+      o.vol.push(r.daily_volume);
+      if(!o.expiry && r.expiry_date) o.expiry=r.expiry_date;
       if(t<momMin)momMin=t; if(t>momMax)momMax=t;
     }
-    // ensure each contract's arrays are date-sorted
     for(const c in byContract){
       const o=byContract[c], idx=o.t.map((_,i)=>i).sort((a,b)=>o.t[a]-o.t[b]);
-      for(const key of ["t","mean","median","mode"]) o[key]=idx.map(i=>o[key][i]);
+      for(const key of ["t","mean","median","mode","sd","vol"]) o[key]=idx.map(i=>o[key][i]);
     }
     const real=realized.map(r=>({t:parseD(r.date),v:r.value})).filter(r=>r.v!=null).sort((a,b)=>a.t-b.t);
     return {byContract, realized:real, momMin, momMax};
   }
 
-  // value of a contract's chosen moment as priced on/near date T (nearest obs within ~45d)
   function valueAsOf(o, T, moment){
     let bi=-1,bd=Infinity;
     for(let i=0;i<o.t.length;i++){const dd=Math.abs(o.t[i]-T);if(dd<bd){bd=dd;bi=i;}}
     if(bi<0||bd>45*DAY) return null;
     return o[moment][bi];
   }
-
-  // build the fan of forward curves: one curve per as-of snapshot date
   function forwardCurves(d, moment, cadence){
     if(d.momMax===-Infinity) return [];
-    // snapshots: latest market date, then step back by `cadence` months to the earliest
     const snaps=[]; let t=d.momMax;
     while(t>=d.momMin-1){ snaps.push(t); t=addMonths(t,-cadence); if(snaps.length>72)break; }
     const contracts=Object.keys(d.byContract).map(c=>({c,x:contractDate(c)})).filter(o=>o.x!=null);
     const curves=[];
     for(const T of snaps){
       const pts=[];
-      for(const {c,x} of contracts){
-        const v=valueAsOf(d.byContract[c], T, moment);
-        if(v!=null) pts.push({x,v,c});
-      }
+      for(const {c,x} of contracts){ const v=valueAsOf(d.byContract[c], T, moment); if(v!=null) pts.push({x,v,c}); }
       pts.sort((a,b)=>a.x-b.x);
       if(pts.length>=2) curves.push({T, pts});
     }
-    return curves; // ordered latest -> oldest
+    return curves;
   }
 
-  // ---------- render ----------
-  function render(){
-    const d=state.data[state.series]; if(!d) return;
+  function contractsSorted(d){
+    return Object.keys(d.byContract).sort((a,b)=>
+      cmeta(b).key-cmeta(a).key || (d.byContract[b].expiry||"").localeCompare(d.byContract[a].expiry||""));
+  }
+  function defaultContract(d){
+    const list=contractsSorted(d);
+    return list.find(c=>d.byContract[c].t.length>=5) || list[0];
+  }
+  const cssv = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+  // ---------- FORWARD-CURVE view ----------
+  function renderForward(){
+    const d=state.data[state.series];
     const meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"};
     const curves=forwardCurves(d, state.moment, state.cadence);
-    const traces=[];
-
-    // fan of forward curves (latest highlighted, older fading into the past)
-    const n=curves.length;
+    const traces=[], n=curves.length;
     curves.forEach((cur,i)=>{
-      const isLatest = i===0;
-      const age = n<=1?0:i/(n-1);                 // 0 latest .. 1 oldest
-      const alpha = isLatest?1 : Math.max(0.12, 0.55*(1-age));
-      const color = isLatest ? "rgba(228,87,46,1)" : `rgba(11,94,215,${alpha})`;
-      const label = new Date(cur.T).toISOString().slice(0,10);
-      traces.push({
-        type:"scatter", mode:"lines+markers",
+      const isLatest=i===0, age=n<=1?0:i/(n-1);
+      const alpha=isLatest?1:Math.max(0.12,0.55*(1-age));
+      const color=isLatest?"rgba(228,87,46,1)":`rgba(11,94,215,${alpha})`;
+      const label=new Date(cur.T).toISOString().slice(0,10);
+      traces.push({type:"scatter", mode:"lines+markers",
         x:cur.pts.map(p=>p.x), y:cur.pts.map(p=>p.v),
-        line:{color, width:isLatest?2.6:1}, marker:{size:isLatest?5:2, color},
-        opacity:1, showlegend:isLatest,
-        name:isLatest?`Latest forward (as of ${label})`:"",
+        line:{color,width:isLatest?2.6:1}, marker:{size:isLatest?5:2,color},
+        showlegend:isLatest, name:isLatest?`Latest forward (as of ${label})`:"",
         legendgroup:isLatest?"latest":"fan", hoverlabel:{namelength:-1},
-        hovertemplate:`as of ${label}<br>%{x|%b %Y}: %{y:.2f}<extra></extra>`,
-      });
+        hovertemplate:`as of ${label}<br>%{x|%b %Y}: %{y:.2f}<extra></extra>`});
     });
-
-    // realized underlying (bold)
     if(d.realized.length){
-      traces.push({
-        type:"scatter", mode:"lines",
+      traces.push({type:"scatter", mode:"lines",
         x:d.realized.map(p=>p.t), y:d.realized.map(p=>p.v),
-        line:{color:getCSS("--realized"), width:3}, name:"Realized (actual)",
-        legendgroup:"realized",
-        hovertemplate:`realized<br>%{x|%b %Y}: %{y:.2f}<extra></extra>`,
-      });
+        line:{color:cssv("--realized"),width:3}, name:"Realized (actual)", legendgroup:"realized",
+        hovertemplate:`realized<br>%{x|%b %Y}: %{y:.2f}<extra></extra>`});
     }
-
-    // default visible window: 12 months before earliest market data
-    const xMinDefault = addMonths(d.momMin, -12);
+    const xMinDefault=addMonths(d.momMin,-12);
     let xMax=d.momMax;
-    Object.keys(d.byContract).forEach(c=>{const x=contractDate(c); if(x!=null&&x>xMax)xMax=x;});
-    if(d.realized.length) xMax=Math.max(xMax, d.realized[d.realized.length-1].t);
-
-    const grid=getCSS("--line"), ink=getCSS("--ink2"), paper=getCSS("--bg");
+    Object.keys(d.byContract).forEach(c=>{const x=contractDate(c);if(x!=null&&x>xMax)xMax=x;});
+    if(d.realized.length) xMax=Math.max(xMax,d.realized[d.realized.length-1].t);
+    const grid=cssv("--line"), ink=cssv("--ink2"), paper=cssv("--bg");
     Plotly.react("chart", traces, {
-      paper_bgcolor:paper, plot_bgcolor:paper, font:{color:ink, family:"var(--sans)"},
+      paper_bgcolor:paper, plot_bgcolor:paper, font:{color:ink,family:"var(--sans)"},
       margin:{t:12,r:14,b:20,l:52}, hovermode:"closest",
-      legend:{orientation:"h", y:1.06, x:0, font:{size:12}},
-      xaxis:{type:"date", gridcolor:grid, range:[xMinDefault,xMax],
-             rangeslider:{visible:true, thickness:0.08, bordercolor:grid},
-             rangeselector:{buttons:[
-               {step:"month",count:12,label:"1y",stepmode:"backward"},
-               {step:"month",count:24,label:"2y",stepmode:"backward"},
-               {step:"all",label:"All"}]}},
-      yaxis:{title:{text:meta.axis, font:{size:12}}, gridcolor:grid, zeroline:false},
-    }, {responsive:true, displayModeBar:false, displaylogo:false});
-
-    $("cap").textContent =
-      `${meta.label} — ${n} market-implied forward curve${n===1?"":"s"} (${state.moment}, `+
-      `${state.cadence===1?"monthly":"quarterly"} back to ${new Date(d.momMin).toISOString().slice(0,7)}) `+
-      `vs the realized outcome.`;
+      legend:{orientation:"h",y:1.06,x:0,font:{size:12}},
+      xaxis:{type:"date",gridcolor:grid,range:[xMinDefault,xMax],
+             rangeslider:{visible:true,thickness:0.08,bordercolor:grid},
+             rangeselector:{buttons:[{step:"month",count:12,label:"1y",stepmode:"backward"},
+               {step:"month",count:24,label:"2y",stepmode:"backward"},{step:"all",label:"All"}]}},
+      yaxis:{title:{text:meta.axis,font:{size:12}},gridcolor:grid,zeroline:false},
+    }, {responsive:true,displayModeBar:false,displaylogo:false});
+    $("cap").textContent=`${meta.label} — ${n} market-implied forward curve${n===1?"":"s"} (${state.moment}, `+
+      `${state.cadence===1?"monthly":"quarterly"} back to ${new Date(d.momMin).toISOString().slice(0,7)}) vs the realized outcome.`;
+    $("foot").innerHTML=`Each thin line is the market-implied path (mean/median/mode) across contract target dates, priced as of the labelled as-of date `+
+      `(nearest observation within ~6 weeks); the bold line is the realized outcome from FRED. Contract target dates are the nominal period mid-month.`;
   }
-  function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 
-  // ---------- load a series on demand (cache) ----------
-  async function ensureSeries(k){
-    if(state.data[k]){ $("status").style.display="none"; $("chart").style.display="block"; render(); return; }
-    $("status").style.display="block"; $("status").textContent=`Loading ${CFG.SERIES_META[k]?.label||k}…`;
-    $("chart").style.display="none";
-    const [moments, realized] = await Promise.all([
-      pgFetch("daily_moments", `select=contract_preamble,date,mean,median,mode&series=eq.${k}`),
-      pgFetch("underlying_history", `select=date,value&series=eq.${k}&order=date`),
-    ]);
-    state.data[k]=prep(moments, realized);
-    if(!moments.length){
-      $("status").textContent=`No data yet for ${CFG.SERIES_META[k]?.label||k}. `+
-        `The pipeline may still be seeding — check back shortly.`;
-      return;
+  // ---------- TIME-SERIES view ----------
+  function renderTime(){
+    const d=state.data[state.series], meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"};
+    const o=d.byContract[state.contract];
+    if(!o){ $("chart").innerHTML=""; $("cap").textContent="No contract selected."; return; }
+    const x=o.t, traces=[];
+    // ±1 s.d. band around the mean
+    if(state.show.band){
+      const up=[],dn=[],xb=[];
+      for(let i=0;i<x.length;i++){ if(o.mean[i]==null||o.sd[i]==null)continue;
+        xb.push(x[i]); up.push(o.mean[i]+o.sd[i]); dn.push(o.mean[i]-o.sd[i]); }
+      if(xb.length){
+        traces.push({type:"scatter",mode:"lines",x:xb,y:up,line:{width:0},
+          hoverinfo:"skip",showlegend:false});
+        traces.push({type:"scatter",mode:"lines",x:xb,y:dn,line:{width:0},fill:"tonexty",
+          fillcolor:"rgba(11,94,215,0.12)",hoverinfo:"skip",showlegend:false,name:"±1 s.d."});
+      }
     }
+    // volume bars on a hidden secondary axis (bottom strip)
+    if(state.show.vol && o.vol.some(v=>v!=null && v>0)){
+      const vmax=Math.max(...o.vol.map(v=>v||0),1);
+      traces.push({type:"bar",x,y:o.vol.map(v=>v||0),yaxis:"y2",name:"Volume",
+        marker:{color:cssv("--muted"),opacity:0.35},
+        hovertemplate:"%{x|%b %e, %Y}<br>volume %{y:,}<extra></extra>"});
+      renderTime._vmax=vmax;
+    } else renderTime._vmax=1;
+    // moment lines
+    const lineDefs=[["mode","--s3",1.6],["median","--s2",1.8],["mean","--s1",2.6]];
+    for(const [k,cv,w] of lineDefs){
+      if(!state.show[k])continue;
+      traces.push({type:"scatter",mode:"lines",x,y:o[k],name:k[0].toUpperCase()+k.slice(1),
+        line:{color:cssv(cv),width:w},connectgaps:false,
+        hovertemplate:`${k}: %{y:.2f}${meta.unit||""}<extra></extra>`});
+    }
+    const grid=cssv("--line"), ink=cssv("--ink2"), paper=cssv("--bg");
+    const shapes=[];
+    if(o.expiry){ const ex=parseD(o.expiry);
+      shapes.push({type:"line",x0:ex,x1:ex,yref:"paper",y0:0,y1:1,
+        line:{color:cssv("--muted"),width:1,dash:"dot"}}); }
+    Plotly.react("chart", traces, {
+      paper_bgcolor:paper, plot_bgcolor:paper, font:{color:ink,family:"var(--sans)"},
+      margin:{t:12,r:14,b:20,l:52}, hovermode:"x unified", shapes,
+      legend:{orientation:"h",y:1.06,x:0,font:{size:12}},
+      bargap:0.2,
+      xaxis:{type:"date",gridcolor:grid},
+      yaxis:{title:{text:meta.axis,font:{size:12}},gridcolor:grid,zeroline:false,domain:[0,1]},
+      yaxis2:{overlaying:"y",side:"right",range:[0,renderTime._vmax*4],
+              showgrid:false,zeroline:false,visible:false},
+    }, {responsive:true,displayModeBar:false,displaylogo:false});
+    const nobs=o.t.length, exTxt=o.expiry?`, resolves ${o.expiry}`:"";
+    $("cap").textContent=`${meta.label} — ${pretty(state.contract)} release${exTxt}. Each line is the market-implied moment on that trading day (${nobs} days). Dotted line marks expiry.`;
+    $("foot").innerHTML=`Mean/median/mode are the moments of the market-implied distribution for this single contract on each trading day; `+
+      `the shaded band is ±1 standard deviation (√variance) around the mean; bars show daily contract volume.`;
+  }
+
+  function render(){
+    if(!state.data[state.series]) return;
+    (state.tab==="fwd" ? renderForward : renderTime)();
+  }
+
+  // ---------- load a series ----------
+  async function ensureSeries(k){
+    const cached=!!state.data[k];
+    if(!cached){
+      $("status").style.display="block"; $("status").textContent=`Loading ${CFG.SERIES_META[k]?.label||k}…`;
+      $("chart").style.display="none";
+      const [moments, realized] = await Promise.all([
+        pgFetch("daily_moments", `select=contract_preamble,date,expiry_date,mean,median,mode,variance,daily_volume&series=eq.${k}`),
+        pgFetch("underlying_history", `select=date,value&series=eq.${k}&order=date`),
+      ]);
+      state.data[k]=prep(moments, realized);
+      if(!moments.length){
+        $("status").textContent=`No data yet for ${CFG.SERIES_META[k]?.label||k}. The pipeline may still be seeding — check back shortly.`;
+        return;
+      }
+    }
+    // (re)populate the contract selector for this series
+    const d=state.data[k], sel=$("contract");
+    sel.innerHTML="";
+    for(const c of contractsSorted(d)){
+      const opt=document.createElement("option"); opt.value=c;
+      opt.textContent=`${pretty(c)}  ·  ${d.byContract[c].t.length} d`; sel.appendChild(opt);
+    }
+    if(!state.contract || !d.byContract[state.contract]) state.contract=defaultContract(d);
+    sel.value=state.contract;
     $("status").style.display="none"; $("chart").style.display="block";
     render();
   }
 
   // ---------- wiring ----------
+  function selectTab(tab){
+    state.tab=tab;
+    $("tab-fwd").setAttribute("aria-selected", tab==="fwd");
+    $("tab-ts").setAttribute("aria-selected", tab==="ts");
+    document.querySelectorAll(".fwd-only").forEach(e=>e.classList.toggle("hidden", tab!=="fwd"));
+    document.querySelectorAll(".ts-only").forEach(e=>e.classList.toggle("hidden", tab!=="ts"));
+    if(state.data[state.series]) render();
+  }
   function segWire(id, key){
     $(id).addEventListener("click", e=>{
       const b=e.target.closest("button"); if(!b) return;
       [...$(id).children].forEach(x=>x.setAttribute("aria-pressed","false"));
       b.setAttribute("aria-pressed","true");
       state[key] = key==="cadence" ? +b.dataset.c : b.dataset.m;
-      if(key==="moment") $("footMoment").textContent=state.moment;
       render();
     });
   }
 
-  async function init(){
+  async function loadSeriesSafe(){
+    try{ await ensureSeries(state.series); }
+    catch(err){ $("status").style.display="block"; $("chart").style.display="none";
+      $("status").textContent="Could not load data: "+err.message; console.error(err); }
+  }
+
+  function init(){
     const sel=$("series");
     for(const k in CFG.SERIES_META){
       const o=document.createElement("option"); o.value=k; o.textContent=CFG.SERIES_META[k].label; sel.appendChild(o);
     }
     state.series=sel.value;
-    sel.addEventListener("change", async ()=>{
-      state.series=sel.value;
-      try{ await ensureSeries(state.series); }
-      catch(err){ $("status").style.display="block"; $("chart").style.display="none";
-        $("status").textContent="Could not load data: "+err.message; console.error(err); }
+    sel.addEventListener("change", ()=>{ state.series=sel.value; state.contract=null; loadSeriesSafe(); });
+    $("contract").addEventListener("change", e=>{ state.contract=e.target.value; render(); });
+    $("tab-fwd").addEventListener("click", ()=>selectTab("fwd"));
+    $("tab-ts").addEventListener("click", ()=>selectTab("ts"));
+    segWire("moment","moment"); segWire("cadence","cadence");
+    $("tsShow").addEventListener("change", e=>{
+      const k=e.target.dataset.k; if(!k)return; state.show[k]=e.target.checked; render();
     });
-    segWire("moment","moment");
-    segWire("cadence","cadence");
-    try{
-      await ensureSeries(state.series);
-    }catch(err){
-      $("status").style.display="block"; $("chart").style.display="none";
-      $("status").textContent="Could not load data: "+err.message;
-      console.error(err);
-    }
+    loadSeriesSafe();
   }
   init();
 })();

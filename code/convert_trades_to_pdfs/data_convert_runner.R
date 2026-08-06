@@ -61,9 +61,13 @@ tryCatch(
                         output_distributions = 'data/daily_distribution_data/daily_distributions_nonfarm_payrolls.csv',
                         output_moments = 'data/daily_moments_data/daily_moments_nonfarm_payrolls.csv',
                         output_wide = 'data/daily_distribution_data/wide/daily_distributions_nonfarm_payrolls.csv',
-                        strike_int = 50,
+                        # Kalshi lists KXPAYROLLS strikes every 10k jobs (audit_strikes.py:
+                        # native gap 10,000 vs the old 50,000 grid), so bin at 10 (thousands,
+                        # via strike_scale) to match the market's real ladder rather than
+                        # coarsening ~5 strikes per bin. moment_adjustment = strike_int / 2.
+                        strike_int = 10,
                         days_before_horizon = 45,
-                        moment_adjustment = 25,
+                        moment_adjustment = 5,
                         strike_scale = 0.001),
   error = function(e) message("nonfarm_payrolls conversion failed: ", conditionMessage(e)))
 

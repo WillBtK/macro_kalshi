@@ -43,11 +43,14 @@ SERIES = [
          moments="daily_moments_headline_cpi_end_of_year.csv",
          dist="daily_distributions_headline_cpi_end_of_year.csv",
          fred=dict(id="CPIAUCSL", units="pc1")),
+    # KXGDPYEAR resolves to the BEA advance estimate of annual real GDP growth
+    # for the year (annual-average basis: prior-year annual level to current-year
+    # annual level), NOT Q4/Q4. Realized = FRED annual real GDP % change.
     dict(key="gdp_end_of_year", ticker="KXGDPYEAR",
          trades="trade_level_data_gdp_end_of_year.csv",
          moments="daily_moments_gdp_end_of_year.csv",
          dist="daily_distributions_gdp_end_of_year.csv",
-         fred=dict(id="A191RL1Q225SBEA", units="lin")),
+         fred=dict(id="A191RL1A225NBEA", units="lin")),
     dict(key="unemployment_releases", ticker="KXU3",
          trades="trade_level_data_unemployment.csv",
          moments="daily_moments_unemployment_releases.csv",

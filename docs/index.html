@@ -395,7 +395,12 @@
     let snaps=[];
     if(cadence==="evt0"||cadence==="evt1"){
       const shift=cadence==="evt1"?-DAY:0;
-      snaps=(d.eventDates||[]).filter(t=>t<=d.momMax+DAY && t>=d.momMin-45*DAY).map(t=>t+shift).sort((a,b)=>b-a);
+      // Greys = the curve as-of each past event; the current (orange) curve is
+      // ALWAYS the latest observation, not the last event date. So put momMax
+      // first and use only event dates strictly before it as the history.
+      const evs=(d.eventDates||[]).filter(t=>t<=d.momMax+DAY && t>=d.momMin-45*DAY)
+                  .map(t=>t+shift).filter(t=>t<d.momMax-2*DAY).sort((a,b)=>b-a);
+      snaps=[d.momMax, ...evs];
     } else {
       const step=+cadence||1; let t=d.momMax; while(t>=d.momMin-1){snaps.push(t);t=addMonths(t,-step);if(snaps.length>72)break;}
     }
@@ -409,12 +414,16 @@
   }
   function renderForward(){
     const d=state.data[state.series],meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"};
-    const curves=forwardCurves(d,state.momentFwd,state.cadence,state.minVol),traces=[],n=curves.length;
+    const curves=forwardCurves(d,state.momentFwd,state.cadence,state.minVol),traces=[];
+    // Uniform line weight for all snapshots; the current curve is set apart by
+    // colour (orange) + markers, not by weight. Historical curves are a single
+    // legible grey (no age fade — the pale-with-age styling made older lines
+    // barely visible).
     curves.forEach((cur,i)=>{
-      const isLatest=i===0,age=n<=1?0:i/(n-1);
-      const color=isLatest?cssv("--s2"):`rgba(138,147,160,${Math.max(0.10,0.42*(1-age))})`;
+      const isLatest=i===0;
+      const color=isLatest?cssv("--s2"):"rgba(138,147,160,0.5)";
       traces.push({type:"scatter",mode:isLatest?"lines+markers":"lines",x:cur.pts.map(p=>p.x),y:cur.pts.map(p=>p.v),
-        line:{color,width:isLatest?2.4:1},marker:{size:isLatest?4:1,color},
+        line:{color,width:2},marker:{size:isLatest?4:1,color},
         hovertemplate:`as of ${isoDay(cur.T)}<br>%{x|%b %Y}: %{y:.2f}<extra></extra>`});
     });
     if(d.realized.length)traces.push({type:"scatter",mode:"lines",x:d.realized.map(p=>p.t),y:d.realized.map(p=>p.v),
@@ -442,7 +451,7 @@
     const ev=EVENT_NAME[state.series]||"release";
     const cadTxt=state.cadence==="evt0"?`as of each ${ev}`:state.cadence==="evt1"?`as of the day before each ${ev}`:
       `priced ${state.cadence==="3"?"quarterly":"monthly"} back to ${isoDay(d.momMin).slice(0,7)}`;
-    $("cap-fwd").textContent=`${meta.label}. Each pale line is a market-implied path (${state.momentFwd}) across contract dates, ${cadTxt}; `+
+    $("cap-fwd").textContent=`${meta.label}. Each grey line is a market-implied path (${state.momentFwd}) across contract dates, ${cadTxt}; `+
       `orange = current curve, black = realized (FRED).`+(state.minVol>0?` Days under ${state.minVol} contracts excluded.`:``);
   }
 
@@ -1070,7 +1079,7 @@
     $("bCols").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;state.builderCols.splice(+b.dataset.idx,1);renderBuilder();});
     $("dlBuilder").addEventListener("click",downloadBuilder);
     $("dlCsv").addEventListener("click",downloadCSV);
-    $("foot").innerHTML=`Forward curves: pale = past market-implied paths, orange = current, black = realized (FRED); cadence can step monthly/quarterly or land on each release/meeting (day-of or day-before). `+
+    $("foot").innerHTML=`Forward curves: grey = past market-implied paths, orange = current (always the latest observation), black = realized (FRED); cadence can step monthly/quarterly or land on each release/meeting (day-of or day-before). `+
       `Time series: one contract's moments over its life with the ±1 s.d. band and the day's probability distribution. `+
       `Term structure: up to four as-of dates. Uncertainty &amp; skew: the implied standard deviation and asymmetry of the distribution, by horizon or over time. `+
       `Data: browse contracts with sparklines and download the full daily history as CSV. `+

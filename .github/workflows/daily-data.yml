@@ -65,6 +65,32 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+      # TEMPORARY: print the ticker/strike structure of the two new series so we
+      # can design their R conversion. Removed once step 2 is wired up.
+      - name: Inspect new-series structure (temporary)
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import csv, os, collections, re
+          for key in ["gdp_quarterly", "nonfarm_payrolls"]:
+              fn = f"data/trade_level_data/trade_level_data_{key}.csv"
+              if not os.path.exists(fn):
+                  print(f"=== {key}: MISSING {fn} ==="); continue
+              tk = collections.Counter(); strikes = set(); n = 0
+              with open(fn) as f:
+                  for r in csv.DictReader(f):
+                      n += 1; t = r["ticker"]; tk[t] += 1
+                      m = re.search(r"[^-]+$", t)
+                      if m: strikes.add(m.group(0))
+              print(f"=== {key}: {n} trades, {len(tk)} distinct tickers ===")
+              for t in list(tk)[:15]:
+                  print("  ticker:", t)
+              def sk(s):
+                  m = re.search(r"-?\d+\.?\d*", s); return float(m.group(0)) if m else 1e18
+              ss = sorted(strikes, key=sk)
+              print("  distinct strike suffixes (sorted):", ss[:40])
+          PY
+
       # -----------------------
       # R setup + convert
       # -----------------------

@@ -58,6 +58,16 @@
   .spec{color:var(--ink2);font-size:12.5px;margin:-4px 2px 16px;max-width:840px;padding:8px 12px;
         background:var(--panel);border:1px solid var(--line);border-radius:8px}
   .spec b{font-weight:600}
+  /* probabilities condition builder */
+  .probbuild{display:flex;flex-direction:column;gap:10px;margin:0 0 16px}
+  .condrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:14px}
+  .condrow select{min-width:auto;padding:6px 8px}
+  .condrow select[data-f="series"]{min-width:190px}
+  .condrow select[data-f="contract"]{min-width:150px}
+  .condrow input[type=number]{font:14px var(--sans);padding:6px 8px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink)}
+  .condp{color:var(--muted);font-weight:600}
+  .rmbtn{border:1px solid var(--line);background:var(--bg);color:var(--muted);border-radius:7px;width:28px;height:30px;cursor:pointer;font-size:16px;line-height:1}
+  .addcond{align-self:flex-start;font:13px var(--sans);padding:6px 12px;border:1px dashed var(--line);border-radius:7px;background:none;color:var(--accent);cursor:pointer}
   h2.sec{font-size:15px;margin:20px 2px 2px;font-weight:600}
   .sliderrow{display:flex;align-items:center;gap:12px;margin:8px 2px 2px}
   .sliderrow input[type=range]{flex:1;accent-color:var(--ink)}
@@ -104,6 +114,7 @@
     <button id="tab-fwd"  role="tab" aria-selected="true">Forward curves</button>
     <button id="tab-ts"   role="tab" aria-selected="false">Time series</button>
     <button id="tab-term" role="tab" aria-selected="false">Term structure</button>
+    <button id="tab-prob" role="tab" aria-selected="false">Probabilities</button>
     <button id="tab-data" role="tab" aria-selected="false">Data</button>
   </div>
 
@@ -209,6 +220,12 @@
     <p id="cap-term" class="cap"></p>
   </section>
 
+  <section id="panel-prob" class="panel hidden">
+    <div id="probBuilder" class="probbuild"></div>
+    <div id="chart-prob" class="chart tall"></div>
+    <p id="cap-prob" class="cap"></p>
+  </section>
+
   <section id="panel-data" class="panel hidden">
     <div id="dataSummaryWrap">
       <p id="cap-data" class="cap"></p>
@@ -282,7 +299,8 @@
   const state={tab:"fwd",series:null,momentFwd:"mean",cadence:"1",momentTerm:"mean",contract:null,di:0,
     minVol:0,lowVol:"carry",dataMode:"summary",builderCols:[],tsShowExpired:false,dataShowExpired:false,
     show:{mean:true,median:true,mode:true,band:true,vol:true},termSnaps:["latest","m1","m3"],
-    dataSeries:{},cols:{mean:true,median:true,mode:true,sd:true,vol:true},data:{},dist:{}};
+    dataSeries:{},cols:{mean:true,median:true,mode:true,sd:true,vol:true},data:{},dist:{},
+    prob:{conds:[{series:"headline_cpi_end_of_year",contract:null,cmp:"gt",x:3,y:4}]}};
 
   // ---- Tufte layout defaults: quiet grid, no legend, direct labels via annotations ----
   function baseLayout(extra){
@@ -657,10 +675,79 @@
     document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(a.href);
   }
 
+  // ================= PROBABILITIES (threshold + joint, from strike-level dists)
+  function condProbSeries(c){
+    const dist=(state.dist[c.series]||{})[c.contract]; if(!dist) return {};
+    const lo=Math.min(c.x,c.y), hi=Math.max(c.x,c.y), out={};
+    for(const date in dist.byDate){
+      const pm=dist.byDate[date]; let s=0;
+      for(const strike of dist.strikes){ const p=pm[strike]||0;
+        if(c.cmp==="gt"){ if(strike>c.x) s+=p; }
+        else if(c.cmp==="lt"){ if(strike<c.x) s+=p; }
+        else { if(strike>=lo && strike<=hi) s+=p; } }
+      out[date]=s;
+    }
+    return out;
+  }
+  function condLabel(c){
+    const u=(CFG.SERIES_META[c.series]||{}).unit||"", lab=CFG.SERIES_META[c.series]?.label||c.series;
+    const cmp=c.cmp==="gt"?`> ${c.x}${u}`:c.cmp==="lt"?`< ${c.x}${u}`:`${Math.min(c.x,c.y)}–${Math.max(c.x,c.y)}${u}`;
+    return `P(${lab} ${c.contract?pretty(c.contract):""} ${cmp})`;
+  }
+  function renderProbBuilder(){
+    const conds=state.prob.conds;
+    const row=(c,i)=>{
+      const d=state.data[c.series];
+      const sOpts=Object.keys(CFG.SERIES_META).map(k=>`<option value="${k}"${k===c.series?" selected":""}>${CFG.SERIES_META[k].label}</option>`).join("");
+      const cOpts=d?contractsSorted(d).map(cc=>`<option value="${cc}"${cc===c.contract?" selected":""}>${pretty(cc)}</option>`).join(""):"";
+      const u=(CFG.SERIES_META[c.series]||{}).unit||"";
+      return `<div class="condrow" data-i="${i}"><span class="condp">P(</span>`+
+        `<select data-f="series">${sOpts}</select>`+
+        `<select data-f="contract">${cOpts}</select>`+
+        `<select data-f="cmp"><option value="gt"${c.cmp==="gt"?" selected":""}>&gt;</option><option value="lt"${c.cmp==="lt"?" selected":""}>&lt;</option><option value="bt"${c.cmp==="bt"?" selected":""}>between</option></select>`+
+        `<input data-f="x" type="number" step="0.1" value="${c.x}" style="width:74px">`+
+        (c.cmp==="bt"?`<span class="condp">and</span><input data-f="y" type="number" step="0.1" value="${c.y}" style="width:74px">`:"")+
+        `<span class="condp">${u} )</span>`+
+        (i===1?`<button data-act="rm" class="rmbtn" title="Remove condition">×</button>`:"")+
+        `</div>`;
+    };
+    let html=conds.map(row).join("");
+    if(conds.length===1) html+=`<button class="addcond" data-act="add">+ add a second condition (joint probability)</button>`;
+    $("probBuilder").innerHTML=html;
+  }
+  function renderProb(){
+    const conds=state.prob.conds, maps=conds.map(condProbSeries);
+    const grid=cssv("--grid"), traces=[];
+    const base=Object.assign(baseLayout({margin:{t:10,r:16,b:24,l:48},
+      xaxis:{type:"date",gridcolor:grid,showgrid:false,zeroline:false,showline:false,ticks:"outside",ticklen:4,tickcolor:grid},
+      yaxis:{title:{text:"Probability (%)",font:{size:11.5}},gridcolor:grid,zeroline:false,ticksuffix:"%",rangemode:"tozero"}}),
+      {showlegend:true,legend:{orientation:"h",y:1.09,x:0,font:{size:11.5}}});
+    if(conds.length===1){
+      const m=maps[0], dates=Object.keys(m).sort();
+      traces.push({type:"scatter",mode:"lines",x:dates.map(parseD),y:dates.map(d=>m[d]),line:{color:cssv("--s1"),width:2.4},
+        name:condLabel(conds[0]),hovertemplate:"%{x|%b %e, %Y}: %{y:.1f}%<extra></extra>"});
+      $("cap-prob").textContent=`${condLabel(conds[0])} over time, summed from the day's market-implied distribution.`;
+    } else {
+      const m1=maps[0], m2=maps[1], dates=Object.keys(m1).filter(d=>d in m2).sort();
+      traces.push({type:"scatter",mode:"lines",x:dates.map(parseD),y:dates.map(d=>m1[d]),line:{color:cssv("--gray"),width:1,dash:"dot"},name:condLabel(conds[0]),hovertemplate:"%{y:.1f}%<extra></extra>"});
+      traces.push({type:"scatter",mode:"lines",x:dates.map(parseD),y:dates.map(d=>m2[d]),line:{color:cssv("--gray"),width:1,dash:"dash"},name:condLabel(conds[1]),hovertemplate:"%{y:.1f}%<extra></extra>"});
+      traces.push({type:"scatter",mode:"lines",x:dates.map(parseD),y:dates.map(d=>m1[d]*m2[d]/100),line:{color:cssv("--s2"),width:2.6},name:"Joint (both)",hovertemplate:"%{x|%b %e, %Y}: %{y:.1f}%<extra></extra>"});
+      $("cap-prob").innerHTML=`Joint probability of <b>both</b> conditions over time — computed as P₁ × P₂, <b>assuming the two markets are independent</b>. Dotted &amp; dashed lines are the individual (marginal) probabilities.`;
+    }
+    Plotly.react("chart-prob",traces,base,CFG_PLOT);
+  }
+  async function showProb(){
+    await Promise.all([...new Set(state.prob.conds.map(c=>c.series))].map(fetchSeries));
+    for(const c of state.prob.conds){const d=state.data[c.series];if(d&&(!c.contract||!d.byContract[c.contract]))c.contract=defaultContract(d);}
+    for(const c of state.prob.conds){try{await ensureDist(c.series,c.contract);}catch(e){console.error(e);}}
+    renderProbBuilder(); renderProb();
+  }
+
   // ================= dispatch + load
   function renderDataTab(){ return state.dataMode==="builder" ? renderBuilder() : renderData(); }
-  function render(){if(!state.data[state.series]&&state.tab!=="data")return;
-    if(state.tab==="fwd")renderForward();else if(state.tab==="ts")renderTimeAll();else if(state.tab==="term")renderTerm();else renderDataTab();}
+  function render(){if(!state.data[state.series]&&state.tab!=="data"&&state.tab!=="prob")return;
+    if(state.tab==="fwd")renderForward();else if(state.tab==="ts")renderTimeAll();else if(state.tab==="term")renderTerm();
+    else if(state.tab==="prob")renderProb();else renderDataTab();}
   async function fetchSeries(k){
     if(state.data[k])return state.data[k];
     const [moments,realized]=await Promise.all([
@@ -697,12 +784,13 @@
     }
   }
   function updateSpec(){const m=CFG.SERIES_META[state.series]||{},el=$("seriesSpec");
-    if(state.tab==="data"||!m.spec){el.style.display="none";return;}
+    if(state.tab==="data"||state.tab==="prob"||!m.spec){el.style.display="none";return;}
     el.style.display="block";el.innerHTML=`<b>Contract:</b> ${m.spec}`;}
   async function showTab(){
     document.querySelectorAll(".panel").forEach(p=>p.classList.add("hidden"));
     $(`panel-${state.tab}`).classList.remove("hidden");
     updateSpec();
+    if(state.tab==="prob"){await showProb();return;}
     if(state.tab==="ts"){try{await ensureDist(state.series,state.contract);}catch(e){console.error(e);}}
     if(state.tab==="data"){
       $("dataSummaryWrap").classList.toggle("hidden",state.dataMode!=="summary");
@@ -714,13 +802,13 @@
     render();
   }
   function selectTab(tab){state.tab=tab;
-    for(const t of ["fwd","ts","term","data"])$(`tab-${t}`).setAttribute("aria-selected",t===tab);
-    document.querySelectorAll(".notdata").forEach(e=>e.classList.toggle("hidden",tab==="data"));
+    for(const t of ["fwd","ts","term","prob","data"])$(`tab-${t}`).setAttribute("aria-selected",t===tab);
+    document.querySelectorAll(".notdata").forEach(e=>e.classList.toggle("hidden",tab==="data"||tab==="prob"));
     document.querySelectorAll(".fwd-only").forEach(e=>e.classList.toggle("hidden",tab!=="fwd"));
     document.querySelectorAll(".ts-only").forEach(e=>e.classList.toggle("hidden",tab!=="ts"));
     document.querySelectorAll(".term-only").forEach(e=>e.classList.toggle("hidden",tab!=="term"));
     document.querySelectorAll(".data-only").forEach(e=>e.classList.toggle("hidden",tab!=="data"));
-    if(state.data[state.series]||tab==="data")showTab();
+    if(state.data[state.series]||tab==="data"||tab==="prob")showTab();
   }
   function segWire(id,key,cast){$(id).addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
     [...$(id).children].forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");
@@ -744,7 +832,20 @@
     $("tab-fwd").addEventListener("click",()=>selectTab("fwd"));
     $("tab-ts").addEventListener("click",()=>selectTab("ts"));
     $("tab-term").addEventListener("click",()=>selectTab("term"));
+    $("tab-prob").addEventListener("click",()=>selectTab("prob"));
     $("tab-data").addEventListener("click",()=>selectTab("data"));
+    $("probBuilder").addEventListener("change",e=>{const row=e.target.closest(".condrow");if(!row)return;
+      const i=+row.dataset.i,f=e.target.dataset.f;if(!f)return;const c=state.prob.conds[i];
+      if(f==="series"){c.series=e.target.value;c.contract=null;}
+      else if(f==="contract")c.contract=e.target.value;
+      else if(f==="cmp")c.cmp=e.target.value;
+      else if(f==="x")c.x=+e.target.value;
+      else if(f==="y")c.y=+e.target.value;
+      showProb();});
+    $("probBuilder").addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(!b)return;
+      if(b.dataset.act==="add"){state.prob.conds.push({series:"gdp_end_of_year",contract:null,cmp:"lt",x:1.5,y:2});}
+      else if(b.dataset.act==="rm"){state.prob.conds.splice(1,1);}
+      showProb();});
     segWire("momentFwd","momentFwd",v=>v);segWire("cadence","cadence",v=>v);segWire("momentTerm","momentTerm",v=>v);
     $("minVol").addEventListener("input",e=>{state.minVol=Math.max(0,Math.floor(+e.target.value||0));if(state.data[state.series])render();});
     $("lowVol").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;

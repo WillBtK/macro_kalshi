@@ -446,9 +446,22 @@
       `orange = current curve, black = realized (FRED).`+(state.minVol>0?` Days under ${state.minVol} contracts excluded.`:``);
   }
 
+  // Settlement value for an EXPIRED contract = the first-release print released
+  // nearest the contract's close (recent expiries only, ~2 years). Matches by
+  // release date, so it's agnostic to how each series labels its months.
+  function settleValue(d,contract){
+    if(!isExpired(contract))return null;
+    const o=d.byContract[contract]; if(!o||!o.expiry)return null;
+    const exp=parseD(o.expiry); if((+_now)-exp>760*DAY)return null;
+    let best=null,bd=Infinity;
+    for(const r of (d.firstRel||[])){const key=r.rel!=null?r.rel:r.t;const dd=Math.abs(key-exp);if(dd<bd){bd=dd;best=r;}}
+    return (best&&bd<120*DAY)?best.v:null;
+  }
   // ================= TIME SERIES (stacked volume strip, direct labels)
   function tsShapes(o){const s=[];
     if(o.expiry){const ex=parseD(o.expiry);s.push({type:"line",x0:ex,x1:ex,yref:"paper",y0:0,y1:1,line:{color:cssv("--muted"),width:1,dash:"dot"}});}
+    const sv=settleValue(state.data[state.series],state.contract);
+    if(sv!=null)s.push({type:"line",xref:"paper",x0:0,x1:1,y0:sv,y1:sv,layer:"below",line:{color:cssv("--ink"),width:1.4,dash:"dot"}});
     const mx=o.t[state.di];s.push({type:"line",x0:mx,x1:mx,yref:"paper",y0:0,y1:1,line:{color:cssv("--ink"),width:1}});
     return s;}
   function renderTimeLine(){
@@ -499,6 +512,9 @@
       const over=labels[labels.length-1].y-yhi; if(over>0)for(const L of labels)L.y-=over;
     }
     for(const L of labels)anns.push(endLabel(L.x,L.y,L.text,L.color));
+    const settle=settleValue(d,state.contract);
+    if(settle!=null)anns.push({x:1,xref:"paper",y:settle,yref:"y",xanchor:"right",yanchor:"bottom",
+      text:`settled ${fmt(settle,2)}${meta.unit||""}`,showarrow:false,font:{size:11,color:cssv("--ink")},bgcolor:cssv("--bg")});
     Plotly.react("chart-ts",traces,baseLayout({annotations:anns,hovermode:"x unified",shapes:tsShapes(o),bargap:0.3,margin:{t:10,r:78,b:24,l:52},
       xaxis:{type:"date",gridcolor:grid,showgrid:false,zeroline:false,showline:false,ticks:"outside",ticklen:4,tickcolor:grid,anchor:hasVol?"y2":"y"},
       yaxis:{title:{text:meta.axis,font:{size:11.5}},gridcolor:grid,zeroline:false,showline:false,domain:hasVol?[0.2,1]:[0,1]},
@@ -506,6 +522,7 @@
     const div=$("chart-ts");
     if(!div._hoverBound){div._hoverBound=true;div.on("plotly_hover",e=>{const p=e.points&&e.points.find(pp=>pp.pointIndex!=null);if(p)setDay(p.pointIndex,true);});}
     $("cap-ts").textContent=`${meta.label} — ${pretty(state.contract)}. Mean/median/mode over the contract's trading life; shaded band is ±1 s.d.`+
+      (settle!=null?` Dotted horizontal line = where it actually settled (value as first reported, before revisions).`:``)+
       (anyLow?` Dashed = days under ${mv} contracts (${carry?"held at last liquid value":"shown as traded"}); their volume bars are marked orange.`:``);
   }
   function realizedDate(ds,series){const f=REALIZED_FREQ[series]||"month";
@@ -911,7 +928,14 @@
     let expiryRows=[];
     try{ expiryRows=await pgFetch("contract_expiry",`select=contract_preamble,expiry&series=eq.${k}`); }
     catch(e){ console.warn("contract_expiry unavailable:",e.message); }
-    state.data[k]=prep(moments,realized,expiryRows);return state.data[k];
+    // first-release (as-first-reported) values for the settlement line; optional
+    let frRows=[];
+    try{ frRows=await pgFetch("underlying_first_release",`select=date,value,released&series=eq.${k}&order=released`); }
+    catch(e){ console.warn("first_release unavailable:",e.message); }
+    const d=prep(moments,realized,expiryRows);
+    d.firstRel=frRows.map(r=>({rel:r.released?parseD(r.released):null,t:parseD(r.date),v:r.value}))
+                     .filter(r=>r.v!=null).sort((a,b)=>((a.rel||a.t)-(b.rel||b.t)));
+    state.data[k]=d;return d;
   }
   async function ensureDist(k,c){state.dist[k]=state.dist[k]||{};if(state.dist[k][c])return;
     const rows=await pgFetch("daily_distributions",`select=date,strike,probability&series=eq.${k}&contract_preamble=eq.${encodeURIComponent(c)}&order=date,strike`);

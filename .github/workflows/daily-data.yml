@@ -12,6 +12,11 @@ concurrency:
   group: daily-data
   cancel-in-progress: false
 
+# Needed by the keepalive step, which pushes an occasional dummy commit so the
+# scheduled trigger isn't auto-disabled after 60 days of repo inactivity.
+permissions:
+  contents: write
+
 jobs:
   update-data:
     runs-on: ubuntu-latest
@@ -99,3 +104,13 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: python code/kalshi_scraping/fetch_fred.py
+
+      # -----------------------
+      # Keep the schedule alive: GitHub disables scheduled workflows after 60
+      # days with no repo commits, and our runs only write to Postgres. This
+      # action pushes a tiny dummy commit ONLY when the repo nears that cutoff
+      # (~45 days idle), so it re-arms the cron without spamming history.
+      # -----------------------
+      - name: Keep scheduled workflow alive
+        if: always()
+        uses: gautamkrishnar/keepalive-workflow@v2

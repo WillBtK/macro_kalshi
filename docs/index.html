@@ -9,49 +9,67 @@
   :root{
     --bg:#ffffff; --panel:#f7f8fa; --line:#e4e7eb; --ink:#14181f; --ink2:#404855;
     --muted:#6b7480; --accent:#0b5ed7; --realized:#14181f;
-    --s1:#0b5ed7; --s2:#e4572e; --s3:#17a398;
+    --s1:#0b5ed7; --s2:#e4572e; --s3:#17a398; --s4:#7c4dff;
     --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   @media (prefers-color-scheme:dark){
     :root{--bg:#0f1115;--panel:#161a20;--line:#272c34;--ink:#eef1f5;--ink2:#c3cad4;
           --muted:#8b95a1;--accent:#5b9bff;--realized:#eef1f5;
-          --s1:#5b9bff;--s2:#ff8a5b;--s3:#3ec6b6;}
+          --s1:#5b9bff;--s2:#ff8a5b;--s3:#3ec6b6;--s4:#a78bfa;}
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
-       line-height:1.5;-webkit-font-smoothing:antialiased}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased}
   .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 60px}
   header h1{font-size:23px;margin:0 0 6px;letter-spacing:-.01em}
   .lede{color:var(--ink2);font-size:14px;max-width:760px;margin:0 0 4px}
   .lede a{color:var(--accent);text-decoration:none} .lede a:hover{text-decoration:underline}
   .byline{color:var(--muted);font-size:12.5px;margin:2px 0 20px}
-  /* tabs */
   .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px}
-  .tabs button{font:14px var(--sans);padding:9px 16px;border:0;background:none;color:var(--muted);
-               cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:500}
+  .tabs button{font:14px var(--sans);padding:9px 16px;border:0;background:none;color:var(--muted);cursor:pointer;
+               border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:500}
   .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
-  .controls{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:flex-end;
-            background:var(--panel);border:1px solid var(--line);border-radius:12px;
-            padding:14px 16px;margin-bottom:18px}
+  .controls{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:flex-end;background:var(--panel);
+            border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:18px}
   .ctl{display:flex;flex-direction:column;gap:5px}
   .ctl label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
-  select{font:14px var(--sans);padding:7px 10px;border:1px solid var(--line);border-radius:8px;
-         background:var(--bg);color:var(--ink);min-width:180px}
+  select{font:14px var(--sans);padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);min-width:180px}
   .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
   .seg button{font:13px var(--sans);padding:7px 13px;border:0;background:var(--bg);color:var(--ink2);cursor:pointer}
   .seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
   .seg button+button{border-left:1px solid var(--line)}
   .checks{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
-  .checks label{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--ink2);
-                text-transform:none;letter-spacing:0;font-weight:400;cursor:pointer}
+  .checks label{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--ink2);text-transform:none;letter-spacing:0;font-weight:400;cursor:pointer}
   .checks input{accent-color:var(--accent)}
   .sw{display:inline-block;width:11px;height:11px;border-radius:2px}
   .hidden{display:none !important}
-  #chart{width:100%;height:520px}
-  .cap{color:var(--muted);font-size:12.5px;margin:8px 2px 0}
+  /* stat tiles */
+  .tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .tile .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;margin-bottom:5px}
+  .tile .v{font-size:22px;font-weight:650;letter-spacing:-.02em}
+  .tile .u{font-size:13px;color:var(--muted);margin-left:2px}
+  @media(max-width:720px){.tiles{grid-template-columns:repeat(2,1fr)}}
+  .chart{width:100%;height:440px}
+  .chart.tall{height:480px}
+  .hist{width:100%;height:320px}
+  .cap{color:var(--muted);font-size:12.5px;margin:8px 2px 14px}
+  h2.sec{font-size:16px;margin:18px 2px 2px}
+  /* slider */
+  .sliderrow{display:flex;align-items:center;gap:12px;margin:6px 2px 2px}
+  .sliderrow input[type=range]{flex:1;accent-color:var(--accent)}
+  .sliderrow .lab{font-family:var(--mono);font-size:11.5px;color:var(--muted);white-space:nowrap}
+  /* term chips */
+  .chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 6px}
+  .chip{display:inline-flex;align-items:center;gap:6px;font:13px var(--sans);padding:6px 12px;border-radius:999px;
+        border:1px solid var(--line);background:var(--bg);color:var(--ink2);cursor:pointer}
+  .chip[aria-pressed="true"]{border-color:var(--accent);color:var(--ink)}
+  .chip[aria-disabled="true"]{opacity:.5;cursor:not-allowed}
+  .chip .dot{width:9px;height:9px;border-radius:50%}
+  .dateadd{font-size:13px;color:var(--muted);display:inline-flex;gap:6px;align-items:center}
+  .dateadd input{font:13px var(--sans);padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
   .status{padding:40px 12px;text-align:center;color:var(--muted);font-size:14px}
-  .foot{margin-top:26px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+  .foot{margin-top:22px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
 </style>
 </head>
 <body>
@@ -65,8 +83,9 @@
   </header>
 
   <div class="tabs" role="tablist">
-    <button id="tab-fwd" role="tab" aria-selected="true">Forward curves</button>
-    <button id="tab-ts"  role="tab" aria-selected="false">Time series</button>
+    <button id="tab-fwd"  role="tab" aria-selected="true">Forward curves</button>
+    <button id="tab-ts"   role="tab" aria-selected="false">Time series</button>
+    <button id="tab-term" role="tab" aria-selected="false">Term structure</button>
   </div>
 
   <div class="controls">
@@ -74,14 +93,12 @@
       <label for="series">Series</label>
       <select id="series"></select>
     </div>
-
-    <!-- Forward-curve controls -->
     <div class="ctl fwd-only">
       <label>Central tendency</label>
-      <div class="seg" id="moment">
-        <button data-m="mean"   aria-pressed="true">Mean</button>
+      <div class="seg" id="momentFwd">
+        <button data-m="mean" aria-pressed="true">Mean</button>
         <button data-m="median" aria-pressed="false">Median</button>
-        <button data-m="mode"   aria-pressed="false">Mode</button>
+        <button data-m="mode" aria-pressed="false">Mode</button>
       </div>
     </div>
     <div class="ctl fwd-only">
@@ -91,8 +108,6 @@
         <button data-c="3" aria-pressed="false">Quarterly</button>
       </div>
     </div>
-
-    <!-- Time-series controls -->
     <div class="ctl ts-only hidden">
       <label for="contract">Release / contract</label>
       <select id="contract"></select>
@@ -103,15 +118,50 @@
         <label><input type="checkbox" data-k="mean" checked><span class="sw" style="background:var(--s1)"></span>Mean</label>
         <label><input type="checkbox" data-k="median" checked><span class="sw" style="background:var(--s2)"></span>Median</label>
         <label><input type="checkbox" data-k="mode" checked><span class="sw" style="background:var(--s3)"></span>Mode</label>
-        <label><input type="checkbox" data-k="band" checked>±1 s.d. band</label>
+        <label><input type="checkbox" data-k="band" checked>±1 s.d.</label>
         <label><input type="checkbox" data-k="vol" checked>Volume</label>
+      </div>
+    </div>
+    <div class="ctl term-only hidden">
+      <label>Central tendency</label>
+      <div class="seg" id="momentTerm">
+        <button data-m="mean" aria-pressed="true">Mean</button>
+        <button data-m="median" aria-pressed="false">Median</button>
+        <button data-m="mode" aria-pressed="false">Mode</button>
       </div>
     </div>
   </div>
 
   <div id="status" class="status">Connecting to the data store…</div>
-  <div id="chart" style="display:none"></div>
-  <p id="cap" class="cap"></p>
+
+  <!-- FORWARD CURVES -->
+  <section id="panel-fwd" class="panel hidden">
+    <div id="chart-fwd" class="chart tall"></div>
+    <p id="cap-fwd" class="cap"></p>
+  </section>
+
+  <!-- TIME SERIES -->
+  <section id="panel-ts" class="panel hidden">
+    <div id="tiles" class="tiles"></div>
+    <div id="chart-ts" class="chart"></div>
+    <div class="sliderrow">
+      <span class="lab" id="dateMin"></span>
+      <input type="range" id="dateSlider" min="0" max="0" value="0" aria-label="Trading date">
+      <span class="lab" id="dateCur"></span>
+    </div>
+    <p id="cap-ts" class="cap"></p>
+    <h2 class="sec">Probability distribution</h2>
+    <div id="hist" class="hist"></div>
+    <p id="cap-hist" class="cap"></p>
+  </section>
+
+  <!-- TERM STRUCTURE -->
+  <section id="panel-term" class="panel hidden">
+    <div class="chips" id="chips" aria-label="As-of dates (up to 4)"></div>
+    <label class="dateadd" style="margin:0 0 8px">Add date <input type="date" id="termDate" aria-label="Custom as-of date"></label>
+    <div id="chart-term" class="chart tall"></div>
+    <p id="cap-term" class="cap"></p>
+  </section>
 
   <div class="foot" id="foot"></div>
 </div>
@@ -123,270 +173,359 @@
   const CFG = window.MK_CONFIG;
   const $ = id => document.getElementById(id);
   const fmt = (v,d=2)=> v==null||isNaN(v) ? "–" : (+v).toFixed(d);
+  const commas = v => v==null ? "–" : Math.round(v).toLocaleString("en-US");
 
-  // ---------- PostgREST fetch (paginated) ----------
   async function pgFetch(table, query){
     const base = `${CFG.SUPABASE_URL}/rest/v1/${table}?${query}`;
-    const headers = {apikey: CFG.SUPABASE_ANON_KEY, Authorization: `Bearer ${CFG.SUPABASE_ANON_KEY}`};
-    const page = 1000; let offset = 0, out = [];
+    const headers = {apikey: CFG.SUPABASE_ANON_KEY, Authorization:`Bearer ${CFG.SUPABASE_ANON_KEY}`};
+    const page=1000; let offset=0, out=[];
     for(;;){
-      const r = await fetch(`${base}&limit=${page}&offset=${offset}`, {headers});
+      const r=await fetch(`${base}&limit=${page}&offset=${offset}`,{headers});
       if(!r.ok) throw new Error(`${table}: HTTP ${r.status} ${await r.text()}`);
-      const rows = await r.json();
-      out = out.concat(rows);
-      if(rows.length < page) break;
-      offset += page;
+      const rows=await r.json(); out=out.concat(rows);
+      if(rows.length<page) break; offset+=page;
     }
     return out;
   }
 
-  // ---------- contract-ticker parsing ----------
   const MONARR=["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
-  const MON={JAN:"January",FEB:"February",MAR:"March",APR:"April",MAY:"May",JUN:"June",
-             JUL:"July",AUG:"August",SEP:"September",OCT:"October",NOV:"November",DEC:"December"};
+  const MON={JAN:"January",FEB:"February",MAR:"March",APR:"April",MAY:"May",JUN:"June",JUL:"July",AUG:"August",SEP:"September",OCT:"October",NOV:"November",DEC:"December"};
   function cmeta(c){
     let m=c.match(/-(\d{2})([A-Z]{3})$/);
-    if(m&&MON[m[2]]!==undefined){const y=2000+ +m[1];const mi=MONARR.indexOf(m[2]);return{label:`${MON[m[2]]} ${y}`,key:y*12+mi};}
-    m=c.match(/-(\d{4})$/); if(m){const y=+m[1];return{label:`${y}`,key:y*12};}
+    if(m&&MON[m[2]]!==undefined){const y=2000+ +m[1];return{label:`${MON[m[2]]} ${y}`,key:y*12+MONARR.indexOf(m[2])};}
+    m=c.match(/-(\d{4})$/); if(m){return{label:`${+m[1]}`,key:+m[1]*12};}
     m=c.match(/-(\d{2})$/); if(m){const y=2000+ +m[1];return{label:`${y}`,key:y*12};}
     return {label:c.replace(/^KX/,""),key:-1};
   }
   const pretty=c=>cmeta(c).label;
   function contractDate(c){const k=cmeta(c).key;if(k<0)return null;return Date.UTC(Math.floor(k/12),k%12,15);}
-  const parseD = s => {const [y,m,d]=s.split("-").map(Number);return Date.UTC(y,m-1,d);};
+  const parseD=s=>{const[y,m,d]=s.split("-").map(Number);return Date.UTC(y,m-1,d);};
   const addMonths=(t,n)=>{const d=new Date(t);d.setUTCMonth(d.getUTCMonth()+n);return d.getTime();};
+  const isoDay=t=>new Date(t).toISOString().slice(0,10);
+  const MON3=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const fmtD=s=>{const t=parseD(s);const d=new Date(t);return `${MON3[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;};
   const DAY=864e5;
+  const cssv=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 
-  // ---------- state ----------
-  const state = {tab:"fwd", series:null, moment:"mean", cadence:1,
-                 contract:null, show:{mean:true,median:true,mode:true,band:true,vol:true}, data:{}};
+  const TS_ORDER=["latest","m1","m3","m6","e2025","e2024"];
+  const TS_COLORS=["--s1","--s2","--s3","--s4"];
+
+  const state={tab:"fwd", series:null, momentFwd:"mean", cadence:1, momentTerm:"mean",
+    contract:null, di:0, show:{mean:true,median:true,mode:true,band:true,vol:true},
+    termSnaps:["latest","m1","m3"], data:{}, dist:{}};
 
   // ---------- data prep ----------
   function prep(moments, realized){
-    const byContract={};
-    let momMin=Infinity, momMax=-Infinity;
+    const byContract={}; let momMin=Infinity, momMax=-Infinity;
     for(const r of moments){
       const c=r.contract_preamble;
-      if(!byContract[c]) byContract[c]={t:[],mean:[],median:[],mode:[],sd:[],vol:[],expiry:r.expiry_date||null};
+      if(!byContract[c]) byContract[c]={t:[],ds:[],mean:[],median:[],mode:[],sd:[],vol:[],expiry:r.expiry_date||null};
       const o=byContract[c], t=parseD(r.date);
-      o.t.push(t); o.mean.push(r.mean); o.median.push(r.median); o.mode.push(r.mode);
-      o.sd.push(r.variance!=null && r.variance>=0 ? Math.sqrt(r.variance) : null);
-      o.vol.push(r.daily_volume);
-      if(!o.expiry && r.expiry_date) o.expiry=r.expiry_date;
+      o.t.push(t); o.ds.push(r.date); o.mean.push(r.mean); o.median.push(r.median); o.mode.push(r.mode);
+      o.sd.push(r.variance!=null&&r.variance>=0?Math.sqrt(r.variance):null); o.vol.push(r.daily_volume);
+      if(!o.expiry&&r.expiry_date) o.expiry=r.expiry_date;
       if(t<momMin)momMin=t; if(t>momMax)momMax=t;
     }
     for(const c in byContract){
       const o=byContract[c], idx=o.t.map((_,i)=>i).sort((a,b)=>o.t[a]-o.t[b]);
-      for(const key of ["t","mean","median","mode","sd","vol"]) o[key]=idx.map(i=>o[key][i]);
+      for(const k of ["t","ds","mean","median","mode","sd","vol"]) o[k]=idx.map(i=>o[k][i]);
     }
     const real=realized.map(r=>({t:parseD(r.date),v:r.value})).filter(r=>r.v!=null).sort((a,b)=>a.t-b.t);
     return {byContract, realized:real, momMin, momMax};
   }
+  function prepDist(rows){
+    const strikeSet=new Set(), byDate={};
+    for(const r of rows){
+      strikeSet.add(+r.strike);
+      (byDate[r.date]||(byDate[r.date]={}))[+r.strike]=r.probability;
+    }
+    const strikes=[...strikeSet].sort((a,b)=>a-b);
+    return {strikes, byDate};
+  }
 
-  function valueAsOf(o, T, moment){
+  function valueAsOf(o,T,moment){
     let bi=-1,bd=Infinity;
     for(let i=0;i<o.t.length;i++){const dd=Math.abs(o.t[i]-T);if(dd<bd){bd=dd;bi=i;}}
     if(bi<0||bd>45*DAY) return null;
     return o[moment][bi];
   }
-  function forwardCurves(d, moment, cadence){
-    if(d.momMax===-Infinity) return [];
-    const snaps=[]; let t=d.momMax;
-    while(t>=d.momMin-1){ snaps.push(t); t=addMonths(t,-cadence); if(snaps.length>72)break; }
-    const contracts=Object.keys(d.byContract).map(c=>({c,x:contractDate(c)})).filter(o=>o.x!=null);
-    const curves=[];
-    for(const T of snaps){
-      const pts=[];
-      for(const {c,x} of contracts){ const v=valueAsOf(d.byContract[c], T, moment); if(v!=null) pts.push({x,v,c}); }
-      pts.sort((a,b)=>a.x-b.x);
-      if(pts.length>=2) curves.push({T, pts});
-    }
-    return curves;
-  }
-
   function contractsSorted(d){
     return Object.keys(d.byContract).sort((a,b)=>
       cmeta(b).key-cmeta(a).key || (d.byContract[b].expiry||"").localeCompare(d.byContract[a].expiry||""));
   }
-  function defaultContract(d){
-    const list=contractsSorted(d);
-    return list.find(c=>d.byContract[c].t.length>=5) || list[0];
-  }
-  const cssv = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  function defaultContract(d){const list=contractsSorted(d);return list.find(c=>d.byContract[c].t.length>=5)||list[0];}
 
-  // ---------- FORWARD-CURVE view ----------
-  function renderForward(){
-    const d=state.data[state.series];
-    const meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"};
-    const curves=forwardCurves(d, state.moment, state.cadence);
-    const traces=[], n=curves.length;
-    curves.forEach((cur,i)=>{
-      const isLatest=i===0, age=n<=1?0:i/(n-1);
-      const alpha=isLatest?1:Math.max(0.12,0.55*(1-age));
-      const color=isLatest?"rgba(228,87,46,1)":`rgba(11,94,215,${alpha})`;
-      const label=new Date(cur.T).toISOString().slice(0,10);
-      traces.push({type:"scatter", mode:"lines+markers",
-        x:cur.pts.map(p=>p.x), y:cur.pts.map(p=>p.v),
-        line:{color,width:isLatest?2.6:1}, marker:{size:isLatest?5:2,color},
-        showlegend:isLatest, name:isLatest?`Latest forward (as of ${label})`:"",
-        legendgroup:isLatest?"latest":"fan", hoverlabel:{namelength:-1},
-        hovertemplate:`as of ${label}<br>%{x|%b %Y}: %{y:.2f}<extra></extra>`});
-    });
-    if(d.realized.length){
-      traces.push({type:"scatter", mode:"lines",
-        x:d.realized.map(p=>p.t), y:d.realized.map(p=>p.v),
-        line:{color:cssv("--realized"),width:3}, name:"Realized (actual)", legendgroup:"realized",
-        hovertemplate:`realized<br>%{x|%b %Y}: %{y:.2f}<extra></extra>`});
+  // =========================================================== FORWARD CURVES
+  function forwardCurves(d,moment,cadence){
+    if(d.momMax===-Infinity) return [];
+    const snaps=[]; let t=d.momMax;
+    while(t>=d.momMin-1){snaps.push(t);t=addMonths(t,-cadence);if(snaps.length>72)break;}
+    const contracts=Object.keys(d.byContract).map(c=>({c,x:contractDate(c)})).filter(o=>o.x!=null);
+    const curves=[];
+    for(const T of snaps){
+      const pts=[];
+      for(const{c,x}of contracts){const v=valueAsOf(d.byContract[c],T,moment);if(v!=null)pts.push({x,v});}
+      pts.sort((a,b)=>a.x-b.x);
+      if(pts.length>=2)curves.push({T,pts});
     }
-    const xMinDefault=addMonths(d.momMin,-12);
-    let xMax=d.momMax;
+    return curves;
+  }
+  function renderForward(){
+    const d=state.data[state.series], meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"};
+    const curves=forwardCurves(d,state.momentFwd,state.cadence), traces=[], n=curves.length;
+    curves.forEach((cur,i)=>{
+      const isLatest=i===0, age=n<=1?0:i/(n-1), alpha=isLatest?1:Math.max(0.12,0.55*(1-age));
+      const color=isLatest?"rgba(228,87,46,1)":`rgba(11,94,215,${alpha})`, label=isoDay(cur.T);
+      traces.push({type:"scatter",mode:"lines+markers",x:cur.pts.map(p=>p.x),y:cur.pts.map(p=>p.v),
+        line:{color,width:isLatest?2.6:1},marker:{size:isLatest?5:2,color},showlegend:isLatest,
+        name:isLatest?`Latest forward (as of ${label})`:"",legendgroup:isLatest?"latest":"fan",
+        hoverlabel:{namelength:-1},hovertemplate:`as of ${label}<br>%{x|%b %Y}: %{y:.2f}<extra></extra>`});
+    });
+    if(d.realized.length) traces.push({type:"scatter",mode:"lines",x:d.realized.map(p=>p.t),y:d.realized.map(p=>p.v),
+      line:{color:cssv("--realized"),width:3},name:"Realized (actual)",legendgroup:"realized",
+      hovertemplate:`realized<br>%{x|%b %Y}: %{y:.2f}<extra></extra>`});
+    const xMinDefault=addMonths(d.momMin,-12); let xMax=d.momMax;
     Object.keys(d.byContract).forEach(c=>{const x=contractDate(c);if(x!=null&&x>xMax)xMax=x;});
-    if(d.realized.length) xMax=Math.max(xMax,d.realized[d.realized.length-1].t);
-    const grid=cssv("--line"), ink=cssv("--ink2"), paper=cssv("--bg");
-    Plotly.react("chart", traces, {
-      paper_bgcolor:paper, plot_bgcolor:paper, font:{color:ink,family:"var(--sans)"},
-      margin:{t:12,r:14,b:20,l:52}, hovermode:"closest",
-      legend:{orientation:"h",y:1.06,x:0,font:{size:12}},
-      xaxis:{type:"date",gridcolor:grid,range:[xMinDefault,xMax],
-             rangeslider:{visible:true,thickness:0.08,bordercolor:grid},
-             rangeselector:{buttons:[{step:"month",count:12,label:"1y",stepmode:"backward"},
-               {step:"month",count:24,label:"2y",stepmode:"backward"},{step:"all",label:"All"}]}},
-      yaxis:{title:{text:meta.axis,font:{size:12}},gridcolor:grid,zeroline:false},
-    }, {responsive:true,displayModeBar:false,displaylogo:false});
-    $("cap").textContent=`${meta.label} — ${n} market-implied forward curve${n===1?"":"s"} (${state.moment}, `+
-      `${state.cadence===1?"monthly":"quarterly"} back to ${new Date(d.momMin).toISOString().slice(0,7)}) vs the realized outcome.`;
-    $("foot").innerHTML=`Each thin line is the market-implied path (mean/median/mode) across contract target dates, priced as of the labelled as-of date `+
-      `(nearest observation within ~6 weeks); the bold line is the realized outcome from FRED. Contract target dates are the nominal period mid-month.`;
+    if(d.realized.length)xMax=Math.max(xMax,d.realized[d.realized.length-1].t);
+    const grid=cssv("--line"),ink=cssv("--ink2"),paper=cssv("--bg");
+    Plotly.react("chart-fwd",traces,{paper_bgcolor:paper,plot_bgcolor:paper,font:{color:ink},
+      margin:{t:12,r:14,b:20,l:52},hovermode:"closest",legend:{orientation:"h",y:1.06,x:0,font:{size:12}},
+      xaxis:{type:"date",gridcolor:grid,range:[xMinDefault,xMax],rangeslider:{visible:true,thickness:0.08,bordercolor:grid},
+        rangeselector:{buttons:[{step:"month",count:12,label:"1y",stepmode:"backward"},{step:"month",count:24,label:"2y",stepmode:"backward"},{step:"all",label:"All"}]}},
+      yaxis:{title:{text:meta.axis,font:{size:12}},gridcolor:grid,zeroline:false}},
+      {responsive:true,displayModeBar:false,displaylogo:false});
+    $("cap-fwd").textContent=`${meta.label} — ${n} market-implied forward curve${n===1?"":"s"} (${state.momentFwd}, ${state.cadence===1?"monthly":"quarterly"} back to ${isoDay(d.momMin).slice(0,7)}) vs the realized outcome.`;
   }
 
-  // ---------- TIME-SERIES view ----------
-  function renderTime(){
+  // =========================================================== TIME SERIES
+  function tsShapes(o){
+    const shapes=[];
+    if(o.expiry){const ex=parseD(o.expiry);shapes.push({type:"line",x0:ex,x1:ex,yref:"paper",y0:0,y1:1,line:{color:cssv("--muted"),width:1,dash:"dot"}});}
+    const mx=o.t[state.di];
+    shapes.push({type:"line",x0:mx,x1:mx,yref:"paper",y0:0,y1:1,line:{color:cssv("--ink"),width:1.4}});
+    return shapes;
+  }
+  function renderTimeLine(){
     const d=state.data[state.series], meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"};
-    const o=d.byContract[state.contract];
-    if(!o){ $("chart").innerHTML=""; $("cap").textContent="No contract selected."; return; }
+    const o=d.byContract[state.contract]; if(!o)return;
     const x=o.t, traces=[];
-    // ±1 s.d. band around the mean
     if(state.show.band){
-      const up=[],dn=[],xb=[];
-      for(let i=0;i<x.length;i++){ if(o.mean[i]==null||o.sd[i]==null)continue;
-        xb.push(x[i]); up.push(o.mean[i]+o.sd[i]); dn.push(o.mean[i]-o.sd[i]); }
+      const xb=[],up=[],dn=[];
+      for(let i=0;i<x.length;i++){if(o.mean[i]==null||o.sd[i]==null)continue;xb.push(x[i]);up.push(o.mean[i]+o.sd[i]);dn.push(o.mean[i]-o.sd[i]);}
       if(xb.length){
-        traces.push({type:"scatter",mode:"lines",x:xb,y:up,line:{width:0},
-          hoverinfo:"skip",showlegend:false});
-        traces.push({type:"scatter",mode:"lines",x:xb,y:dn,line:{width:0},fill:"tonexty",
-          fillcolor:"rgba(11,94,215,0.12)",hoverinfo:"skip",showlegend:false,name:"±1 s.d."});
+        traces.push({type:"scatter",mode:"lines",x:xb,y:up,line:{width:0},hoverinfo:"skip",showlegend:false});
+        traces.push({type:"scatter",mode:"lines",x:xb,y:dn,line:{width:0},fill:"tonexty",fillcolor:"rgba(11,94,215,0.12)",hoverinfo:"skip",showlegend:false});
       }
     }
-    // volume bars on a hidden secondary axis (bottom strip)
-    if(state.show.vol && o.vol.some(v=>v!=null && v>0)){
-      const vmax=Math.max(...o.vol.map(v=>v||0),1);
-      traces.push({type:"bar",x,y:o.vol.map(v=>v||0),yaxis:"y2",name:"Volume",
-        marker:{color:cssv("--muted"),opacity:0.35},
-        hovertemplate:"%{x|%b %e, %Y}<br>volume %{y:,}<extra></extra>"});
-      renderTime._vmax=vmax;
-    } else renderTime._vmax=1;
-    // moment lines
-    const lineDefs=[["mode","--s3",1.6],["median","--s2",1.8],["mean","--s1",2.6]];
-    for(const [k,cv,w] of lineDefs){
+    if(state.show.vol && o.vol.some(v=>v!=null&&v>0)){
+      renderTimeLine._vmax=Math.max(...o.vol.map(v=>v||0),1);
+      traces.push({type:"bar",x,y:o.vol.map(v=>v||0),yaxis:"y2",name:"Volume",marker:{color:cssv("--muted"),opacity:0.35},
+        hovertemplate:"vol %{y:,}<extra></extra>"});
+    } else renderTimeLine._vmax=1;
+    for(const [k,cv,w] of [["mode","--s3",1.6],["median","--s2",1.8],["mean","--s1",2.6]]){
       if(!state.show[k])continue;
-      traces.push({type:"scatter",mode:"lines",x,y:o[k],name:k[0].toUpperCase()+k.slice(1),
-        line:{color:cssv(cv),width:w},connectgaps:false,
+      traces.push({type:"scatter",mode:"lines",x,y:o[k],name:k[0].toUpperCase()+k.slice(1),line:{color:cssv(cv),width:w},connectgaps:false,
         hovertemplate:`${k}: %{y:.2f}${meta.unit||""}<extra></extra>`});
     }
-    const grid=cssv("--line"), ink=cssv("--ink2"), paper=cssv("--bg");
-    const shapes=[];
-    if(o.expiry){ const ex=parseD(o.expiry);
-      shapes.push({type:"line",x0:ex,x1:ex,yref:"paper",y0:0,y1:1,
-        line:{color:cssv("--muted"),width:1,dash:"dot"}}); }
-    Plotly.react("chart", traces, {
-      paper_bgcolor:paper, plot_bgcolor:paper, font:{color:ink,family:"var(--sans)"},
-      margin:{t:12,r:14,b:20,l:52}, hovermode:"x unified", shapes,
+    const grid=cssv("--line"),ink=cssv("--ink2"),paper=cssv("--bg");
+    Plotly.react("chart-ts",traces,{paper_bgcolor:paper,plot_bgcolor:paper,font:{color:ink},
+      margin:{t:12,r:14,b:20,l:52},hovermode:"x unified",shapes:tsShapes(o),bargap:0.2,
       legend:{orientation:"h",y:1.06,x:0,font:{size:12}},
-      bargap:0.2,
       xaxis:{type:"date",gridcolor:grid},
-      yaxis:{title:{text:meta.axis,font:{size:12}},gridcolor:grid,zeroline:false,domain:[0,1]},
-      yaxis2:{overlaying:"y",side:"right",range:[0,renderTime._vmax*4],
-              showgrid:false,zeroline:false,visible:false},
-    }, {responsive:true,displayModeBar:false,displaylogo:false});
-    const nobs=o.t.length, exTxt=o.expiry?`, resolves ${o.expiry}`:"";
-    $("cap").textContent=`${meta.label} — ${pretty(state.contract)} release${exTxt}. Each line is the market-implied moment on that trading day (${nobs} days). Dotted line marks expiry.`;
-    $("foot").innerHTML=`Mean/median/mode are the moments of the market-implied distribution for this single contract on each trading day; `+
-      `the shaded band is ±1 standard deviation (√variance) around the mean; bars show daily contract volume.`;
+      yaxis:{title:{text:meta.axis,font:{size:12}},gridcolor:grid,zeroline:false},
+      yaxis2:{overlaying:"y",side:"right",range:[0,renderTimeLine._vmax*4],showgrid:false,zeroline:false,visible:false}},
+      {responsive:true,displayModeBar:false,displaylogo:false});
+    const div=$("chart-ts");
+    if(!div._hoverBound){div._hoverBound=true;
+      div.on("plotly_hover",e=>{const p=e.points&&e.points.find(pp=>pp.pointIndex!=null);if(p)setDay(p.pointIndex,true);});}
+  }
+  function renderTiles(){
+    const d=state.data[state.series], o=d.byContract[state.contract], i=state.di, u=(CFG.SERIES_META[state.series]||{}).unit||"";
+    const daysToExp=o.expiry?Math.round((parseD(o.expiry)-o.t[i])/DAY):null;
+    const totVol=o.vol.some(v=>v!=null)?o.vol.reduce((a,v)=>a+(v||0),0):null;
+    const tiles=[["Mean (selected day)",fmt(o.mean[i]),u],["Median",fmt(o.median[i]),u],["Implied s.d.",fmt(o.sd[i]),""],
+      ["Days to release",daysToExp!=null&&daysToExp>=0?daysToExp:"0",""],["Total volume",commas(totVol),""]];
+    $("tiles").innerHTML=tiles.map(([k,v,uu])=>`<div class="tile"><div class="k">${k}</div><div class="v">${v}<span class="u">${uu}</span></div></div>`).join("");
+  }
+  function renderHist(){
+    const d=state.data[state.series], o=d.byContract[state.contract], meta=CFG.SERIES_META[state.series]||{};
+    const dist=(state.dist[state.series]||{})[state.contract];
+    const date=o.ds[state.di];
+    $("cap-hist").textContent=`${meta.label||state.series} — ${pretty(state.contract)}, market-implied probability by outcome on ${fmtD(date)}.`;
+    if(!dist||!dist.byDate[date]){Plotly.react("hist",[],{paper_bgcolor:cssv("--bg"),plot_bgcolor:cssv("--bg"),
+      margin:{t:20,r:14,b:40,l:44},annotations:[{text:"No distribution for this day.",showarrow:false,font:{color:cssv("--muted")}}],
+      xaxis:{visible:false},yaxis:{visible:false}},{responsive:true,displayModeBar:false});return;}
+    const strikes=dist.strikes, pm=dist.byDate[date];
+    const probs=strikes.map(s=>pm[s]||0);
+    let lo=0,hi=strikes.length-1;
+    while(lo<hi&&probs[lo]<0.05)lo++; while(hi>lo&&probs[hi]<0.05)hi--;
+    lo=Math.max(0,lo-1); hi=Math.min(strikes.length-1,hi+1);
+    const xs=strikes.slice(lo,hi+1), ys=probs.slice(lo,hi+1);
+    let modeI=0; ys.forEach((p,i)=>{if(p>ys[modeI])modeI=i;});
+    const colors=ys.map((_,i)=>i===modeI?cssv("--s2"):cssv("--s1"));
+    const mean=o.mean[state.di];
+    const grid=cssv("--line"),ink=cssv("--ink2"),paper=cssv("--bg");
+    const shapes=[], anns=[];
+    if(mean!=null){shapes.push({type:"line",x0:mean,x1:mean,yref:"paper",y0:0,y1:1,line:{color:cssv("--ink"),width:1.4,dash:"dash"}});
+      anns.push({x:mean,y:1,yref:"paper",yanchor:"bottom",text:`mean ${fmt(mean)}`,showarrow:false,font:{size:11,color:cssv("--ink")}});}
+    Plotly.react("hist",[{type:"bar",x:xs,y:ys,marker:{color:colors},width:xs.length>1?(xs[1]-xs[0])*0.72:0.1,
+      hovertemplate:`outcome %{x}${meta.unit||""}<br>%{y:.1f}%<extra></extra>`}],
+      {paper_bgcolor:paper,plot_bgcolor:paper,font:{color:ink},margin:{t:20,r:14,b:44,l:44},shapes,annotations:anns,
+       xaxis:{title:{text:`Outcome (${meta.unit==="%"?"percent":"value"})`,font:{size:11}},gridcolor:grid,zeroline:false},
+       yaxis:{ticksuffix:"%",gridcolor:grid,zeroline:false,rangemode:"tozero"}},
+      {responsive:true,displayModeBar:false,displaylogo:false});
+  }
+  function syncSlider(){
+    const o=state.data[state.series].byContract[state.contract];
+    const sl=$("dateSlider"); sl.max=o.ds.length-1; sl.value=state.di;
+    $("dateMin").textContent=fmtD(o.ds[0]); $("dateCur").textContent=fmtD(o.ds[state.di]);
+  }
+  // fromHover=true skips moving the (already hovered) line but still updates marker/tiles/hist
+  function setDay(i,fromHover){
+    const o=state.data[state.series].byContract[state.contract];
+    state.di=Math.max(0,Math.min(i,o.ds.length-1));
+    $("dateSlider").value=state.di; $("dateCur").textContent=fmtD(o.ds[state.di]);
+    Plotly.relayout("chart-ts",{shapes:tsShapes(o)});
+    renderTiles(); renderHist();
+  }
+  function renderTimeAll(){ renderTimeLine(); syncSlider(); renderTiles(); renderHist(); }
+
+  // =========================================================== TERM STRUCTURE
+  function snapDefs(d){
+    const latest=d.momMax, minus=mo=>addMonths(latest,-mo);
+    return {latest:{label:"Latest",t:latest}, m1:{label:"−1M",t:minus(1)}, m3:{label:"−3M",t:minus(3)},
+      m6:{label:"−6M",t:minus(6)}, e2025:{label:"End-2025",t:Date.UTC(2025,11,31)}, e2024:{label:"End-2024",t:Date.UTC(2024,11,31)}};
+  }
+  const shortD=t=>{const d=new Date(t);return `${d.getUTCDate()} ${MON3[d.getUTCMonth()]} '${String(d.getUTCFullYear()).slice(2)}`;};
+  function resolveSnap(id,defs){ if(id.startsWith("custom:")){const ds=id.slice(7);return{label:shortD(parseD(ds)),t:parseD(ds)};} return defs[id]; }
+  function renderChips(){
+    const d=state.data[state.series], defs=snapDefs(d), box=$("chips"), full=state.termSnaps.length>=4;
+    box.innerHTML="";
+    const chip=(id,label,on,removable)=>{
+      const b=document.createElement("button"); b.className="chip"; b.dataset.id=id;
+      b.setAttribute("aria-pressed",on?"true":"false");
+      if(!on&&full) b.setAttribute("aria-disabled","true");
+      const idx=state.termSnaps.indexOf(id);
+      const dot=on?`<span class="dot" style="background:${cssv(TS_COLORS[idx])}"></span>`:"";
+      b.innerHTML=dot+label+(removable?' <span aria-hidden="true" style="opacity:.55">×</span>':"");
+      box.appendChild(b);
+    };
+    TS_ORDER.forEach(id=>chip(id,defs[id].label,state.termSnaps.includes(id),false));
+    state.termSnaps.filter(id=>id.startsWith("custom:")).forEach(id=>chip(id,resolveSnap(id,defs).label,true,true));
+  }
+  function renderTerm(){
+    const d=state.data[state.series], meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"}, defs=snapDefs(d);
+    const cons=Object.keys(d.byContract).map(c=>({c,x:contractDate(c)})).filter(o=>o.x!=null).sort((a,b)=>a.x-b.x);
+    const traces=[];
+    state.termSnaps.slice(0,4).forEach((id,idx)=>{
+      const sd=resolveSnap(id,defs); if(!sd)return;
+      const pts=[];
+      for(const{c,x}of cons){const v=valueAsOf(d.byContract[c],sd.t,state.momentTerm);if(v!=null)pts.push({x,v});}
+      if(pts.length) traces.push({type:"scatter",mode:"lines+markers",x:pts.map(p=>p.x),y:pts.map(p=>p.v),
+        name:sd.label,line:{color:cssv(TS_COLORS[idx]),width:2.2},marker:{size:6,color:cssv(TS_COLORS[idx])},
+        hovertemplate:`${sd.label}<br>%{x|%b %Y}: %{y:.2f}<extra></extra>`});
+    });
+    const grid=cssv("--line"),ink=cssv("--ink2"),paper=cssv("--bg");
+    Plotly.react("chart-term",traces,{paper_bgcolor:paper,plot_bgcolor:paper,font:{color:ink},
+      margin:{t:12,r:14,b:34,l:52},hovermode:"closest",legend:{orientation:"h",y:1.06,x:0,font:{size:12}},
+      xaxis:{type:"date",gridcolor:grid,title:{text:"Contract date",font:{size:11}}},
+      yaxis:{title:{text:meta.axis,font:{size:12}},gridcolor:grid,zeroline:false}},
+      {responsive:true,displayModeBar:false,displaylogo:false});
+    $("cap-term").textContent=`${meta.label} — market-implied ${state.momentTerm} across contract dates, each line priced as of its labelled date`+
+      (traces.length?".":". Select at least one date.");
+    renderChips();
   }
 
+  // =========================================================== dispatch + load
   function render(){
     if(!state.data[state.series]) return;
-    (state.tab==="fwd" ? renderForward : renderTime)();
+    if(state.tab==="fwd") renderForward();
+    else if(state.tab==="ts") renderTimeAll();
+    else renderTerm();
+  }
+  async function ensureDist(k,c){
+    state.dist[k]=state.dist[k]||{};
+    if(state.dist[k][c]) return;
+    const rows=await pgFetch("daily_distributions",`select=date,strike,probability&series=eq.${k}&contract_preamble=eq.${encodeURIComponent(c)}&order=date,strike`);
+    state.dist[k][c]=prepDist(rows);
+  }
+  async function ensureSeries(k){
+    if(!state.data[k]){
+      $("status").style.display="block"; $("status").textContent=`Loading ${CFG.SERIES_META[k]?.label||k}…`;
+      document.querySelectorAll(".panel").forEach(p=>p.classList.add("hidden"));
+      const [moments,realized]=await Promise.all([
+        pgFetch("daily_moments",`select=contract_preamble,date,expiry_date,mean,median,mode,variance,daily_volume&series=eq.${k}`),
+        pgFetch("underlying_history",`select=date,value&series=eq.${k}&order=date`)]);
+      state.data[k]=prep(moments,realized);
+      if(!moments.length){$("status").textContent=`No data yet for ${CFG.SERIES_META[k]?.label||k}. The pipeline may still be seeding — check back shortly.`;return;}
+    }
+    const d=state.data[k], sel=$("contract"); sel.innerHTML="";
+    for(const c of contractsSorted(d)){const opt=document.createElement("option");opt.value=c;opt.textContent=`${pretty(c)}  ·  ${d.byContract[c].t.length} d`;sel.appendChild(opt);}
+    if(!state.contract||!d.byContract[state.contract]) state.contract=defaultContract(d);
+    sel.value=state.contract;
+    state.di=d.byContract[state.contract].t.length-1;
+    $("status").style.display="none";
+    await showTab();
   }
 
-  // ---------- load a series ----------
-  async function ensureSeries(k){
-    const cached=!!state.data[k];
-    if(!cached){
-      $("status").style.display="block"; $("status").textContent=`Loading ${CFG.SERIES_META[k]?.label||k}…`;
-      $("chart").style.display="none";
-      const [moments, realized] = await Promise.all([
-        pgFetch("daily_moments", `select=contract_preamble,date,expiry_date,mean,median,mode,variance,daily_volume&series=eq.${k}`),
-        pgFetch("underlying_history", `select=date,value&series=eq.${k}&order=date`),
-      ]);
-      state.data[k]=prep(moments, realized);
-      if(!moments.length){
-        $("status").textContent=`No data yet for ${CFG.SERIES_META[k]?.label||k}. The pipeline may still be seeding — check back shortly.`;
-        return;
-      }
-    }
-    // (re)populate the contract selector for this series
-    const d=state.data[k], sel=$("contract");
-    sel.innerHTML="";
-    for(const c of contractsSorted(d)){
-      const opt=document.createElement("option"); opt.value=c;
-      opt.textContent=`${pretty(c)}  ·  ${d.byContract[c].t.length} d`; sel.appendChild(opt);
-    }
-    if(!state.contract || !d.byContract[state.contract]) state.contract=defaultContract(d);
-    sel.value=state.contract;
-    $("status").style.display="none"; $("chart").style.display="block";
+  async function showTab(){
+    document.querySelectorAll(".panel").forEach(p=>p.classList.add("hidden"));
+    $(`panel-${state.tab}`).classList.remove("hidden");
+    if(state.tab==="ts"){ try{ await ensureDist(state.series,state.contract);}catch(e){console.error(e);} }
     render();
   }
 
   // ---------- wiring ----------
   function selectTab(tab){
     state.tab=tab;
-    $("tab-fwd").setAttribute("aria-selected", tab==="fwd");
-    $("tab-ts").setAttribute("aria-selected", tab==="ts");
-    document.querySelectorAll(".fwd-only").forEach(e=>e.classList.toggle("hidden", tab!=="fwd"));
-    document.querySelectorAll(".ts-only").forEach(e=>e.classList.toggle("hidden", tab!=="ts"));
-    if(state.data[state.series]) render();
+    for(const t of ["fwd","ts","term"]) $(`tab-${t}`).setAttribute("aria-selected",t===tab);
+    document.querySelectorAll(".fwd-only").forEach(e=>e.classList.toggle("hidden",tab!=="fwd"));
+    document.querySelectorAll(".ts-only").forEach(e=>e.classList.toggle("hidden",tab!=="ts"));
+    document.querySelectorAll(".term-only").forEach(e=>e.classList.toggle("hidden",tab!=="term"));
+    if(state.data[state.series]) showTab();
   }
-  function segWire(id, key){
-    $(id).addEventListener("click", e=>{
-      const b=e.target.closest("button"); if(!b) return;
+  function segWire(id,key,cast){
+    $(id).addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
       [...$(id).children].forEach(x=>x.setAttribute("aria-pressed","false"));
-      b.setAttribute("aria-pressed","true");
-      state[key] = key==="cadence" ? +b.dataset.c : b.dataset.m;
-      render();
-    });
+      b.setAttribute("aria-pressed","true"); state[key]=cast(b.dataset.m||b.dataset.c); render();});
   }
-
   async function loadSeriesSafe(){
     try{ await ensureSeries(state.series); }
-    catch(err){ $("status").style.display="block"; $("chart").style.display="none";
-      $("status").textContent="Could not load data: "+err.message; console.error(err); }
+    catch(err){$("status").style.display="block";document.querySelectorAll(".panel").forEach(p=>p.classList.add("hidden"));
+      $("status").textContent="Could not load data: "+err.message;console.error(err);}
   }
 
   function init(){
     const sel=$("series");
-    for(const k in CFG.SERIES_META){
-      const o=document.createElement("option"); o.value=k; o.textContent=CFG.SERIES_META[k].label; sel.appendChild(o);
-    }
+    for(const k in CFG.SERIES_META){const o=document.createElement("option");o.value=k;o.textContent=CFG.SERIES_META[k].label;sel.appendChild(o);}
     state.series=sel.value;
-    sel.addEventListener("change", ()=>{ state.series=sel.value; state.contract=null; loadSeriesSafe(); });
-    $("contract").addEventListener("change", e=>{ state.contract=e.target.value; render(); });
-    $("tab-fwd").addEventListener("click", ()=>selectTab("fwd"));
-    $("tab-ts").addEventListener("click", ()=>selectTab("ts"));
-    segWire("moment","moment"); segWire("cadence","cadence");
-    $("tsShow").addEventListener("change", e=>{
-      const k=e.target.dataset.k; if(!k)return; state.show[k]=e.target.checked; render();
+    sel.addEventListener("change",()=>{state.series=sel.value;state.contract=null;loadSeriesSafe();});
+    $("contract").addEventListener("change",async e=>{state.contract=e.target.value;
+      state.di=state.data[state.series].byContract[state.contract].t.length-1;
+      try{await ensureDist(state.series,state.contract);}catch(err){console.error(err);} renderTimeAll();});
+    $("tab-fwd").addEventListener("click",()=>selectTab("fwd"));
+    $("tab-ts").addEventListener("click",()=>selectTab("ts"));
+    $("tab-term").addEventListener("click",()=>selectTab("term"));
+    segWire("momentFwd","momentFwd",v=>v);
+    segWire("cadence","cadence",v=>+v);
+    segWire("momentTerm","momentTerm",v=>v);
+    $("tsShow").addEventListener("change",e=>{const k=e.target.dataset.k;if(!k)return;state.show[k]=e.target.checked;renderTimeLine();});
+    $("dateSlider").addEventListener("input",e=>setDay(+e.target.value));
+    $("chips").addEventListener("click",e=>{
+      const b=e.target.closest(".chip");if(!b)return;const id=b.dataset.id;
+      const i=state.termSnaps.indexOf(id);
+      if(i>=0) state.termSnaps.splice(i,1);
+      else if(state.termSnaps.length<4) state.termSnaps.push(id);
+      renderTerm();
     });
+    $("termDate").addEventListener("change",e=>{
+      if(!e.target.value)return; const id="custom:"+e.target.value;
+      if(!state.termSnaps.includes(id)&&state.termSnaps.length<4) state.termSnaps.push(id);
+      e.target.value=""; renderTerm();
+    });
+    $("foot").innerHTML=`Forward curves: each thin line is the market-implied path across contract dates as of a past date, over the realized outcome (FRED). `+
+      `Time series: one contract's mean/median/mode over its trading life, ±1 s.d. band and the probability distribution for the day under the marker/slider. `+
+      `Term structure: pick up to 4 as-of dates. Contract target dates are the nominal period mid-month; as-of matching uses the nearest observation within ~6 weeks.`;
     loadSeriesSafe();
   }
   init();

@@ -127,6 +127,10 @@
       <label class="h" for="series">Series</label>
       <select id="series"></select>
     </div>
+    <div class="ctl notdata">
+      <label class="h">Source</label>
+      <div class="seg" id="sourceSel"><button data-s="trade" aria-pressed="true">Trades</button><button data-s="quote" aria-pressed="false">Quotes</button></div>
+    </div>
     <div class="ctl fwd-only">
       <label class="h">Central tendency</label>
       <div class="seg" id="momentFwd">
@@ -343,7 +347,7 @@
     unemployment_releases:"Unemployment, latest",nonfarm_payrolls:"Payrolls Δ, latest",gdp_quarterly:"Real GDP q/q, latest"};
   const REALIZED_FREQ={fed_levels:"day",gdp_end_of_year:"year",gdp_quarterly:"quarter"}; // others: month
 
-  const state={tab:"fwd",series:null,momentFwd:"mean",cadence:"1",momentTerm:"mean",contract:null,di:0,
+  const state={tab:"fwd",series:null,source:"trade",momentFwd:"mean",cadence:"1",momentTerm:"mean",contract:null,di:0,
     riskMeasure:"sd",riskView:"horizon",riskNout:[4],esMeasure:"mean",esView:"moves",
     minVol:0,lowVol:"carry",compareView:"chart",compareSepAxes:false,builderCols:[],tsShowExpired:false,dataShowExpired:false,
     show:{mean:true,median:true,mode:true,band:true,vol:true},termSnaps:["latest","m1","m3"],
@@ -1079,8 +1083,12 @@
     else if(state.tab==="prob")renderProb();else renderData();}
   async function fetchSeries(k){
     if(state.data[k])return state.data[k];
+    // Source-aware: "Quotes" reads the bid/ask-derived *_quotes tables, "Trades"
+    // the executed-trade tables. Same shape, so no view code changes. The cache
+    // (state.data / state.dist) is cleared on a source switch, so this re-fetches.
+    const momTable=state.source==="quote"?"daily_moments_quotes":"daily_moments";
     const [moments,realized]=await Promise.all([
-      pgFetch("daily_moments",`select=contract_preamble,date,expiry_date,mean,median,mode,variance,skewness,daily_volume&series=eq.${k}`),
+      pgFetch(momTable,`select=contract_preamble,date,expiry_date,mean,median,mode,variance,skewness,daily_volume&series=eq.${k}`),
       pgFetch("underlying_history",`select=date,value&series=eq.${k}&order=date`)]);
     // true per-contract expiry from Kalshi metadata; tolerate its absence (older DBs)
     let expiryRows=[];
@@ -1090,10 +1098,13 @@
     let frRows=[];
     try{ frRows=await pgFetch("underlying_first_release",`select=date,value,released&series=eq.${k}&order=released`); }
     catch(e){ console.warn("first_release unavailable:",e.message); }
-    // quote-based (bid/ask) moments for the low-volume "Use quotes" fallback; optional
+    // quote-based (bid/ask) moments for the low-volume "Use quotes" fallback; only
+    // needed in Trades mode (in Quotes mode the primary already IS the quote data).
     let qmRows=[];
-    try{ qmRows=await pgFetch("daily_moments_quotes",`select=contract_preamble,date,mean,median,mode,variance&series=eq.${k}`); }
-    catch(e){ console.warn("quote moments unavailable:",e.message); }
+    if(state.source!=="quote"){
+      try{ qmRows=await pgFetch("daily_moments_quotes",`select=contract_preamble,date,mean,median,mode,variance&series=eq.${k}`); }
+      catch(e){ console.warn("quote moments unavailable:",e.message); }
+    }
     const d=prep(moments,realized,expiryRows);
     d.firstRel=frRows.map(r=>({rel:r.released?parseD(r.released):null,t:parseD(r.date),v:r.value}))
                      .filter(r=>r.v!=null).sort((a,b)=>((a.rel||a.t)-(b.rel||b.t)));
@@ -1106,13 +1117,18 @@
     state.data[k]=d;return d;
   }
   async function ensureDist(k,c){state.dist[k]=state.dist[k]||{};if(state.dist[k][c])return;
-    const rows=await pgFetch("daily_distributions",`select=date,strike,probability&series=eq.${k}&contract_preamble=eq.${encodeURIComponent(c)}&order=date,strike`);
+    const distTable=state.source==="quote"?"daily_distributions_quotes":"daily_distributions";
+    const rows=await pgFetch(distTable,`select=date,strike,probability&series=eq.${k}&contract_preamble=eq.${encodeURIComponent(c)}&order=date,strike`);
     state.dist[k][c]=prepDist(rows);}
   async function ensureSeries(k){
     if(!state.data[k]){$("status").style.display="block";$("status").textContent=`Loading ${CFG.SERIES_META[k]?.label||k}…`;
       document.querySelectorAll(".panel").forEach(p=>p.classList.add("hidden"));
       await fetchSeries(k);
-      if(!Object.keys(state.data[k].byContract).length){$("status").textContent=`No data yet for ${CFG.SERIES_META[k]?.label||k}. The pipeline may still be seeding — check back shortly.`;return;}}
+      if(!Object.keys(state.data[k].byContract).length){
+        $("status").textContent=state.source==="quote"
+          ?`No quote-based data for ${CFG.SERIES_META[k]?.label||k}. Quotes currently cover Fed Funds, CPI (YoY/core/MoM), unemployment, and quarterly GDP — switch Source back to Trades for this series.`
+          :`No data yet for ${CFG.SERIES_META[k]?.label||k}. The pipeline may still be seeding — check back shortly.`;
+        return;}}
     fillContractSelect(k);
     const d=state.data[k];
     if(!state.contract||!d.byContract[state.contract]||(isExpired(state.contract)&&!state.tsShowExpired))state.contract=defaultContract(d);
@@ -1202,6 +1218,11 @@
       else if(b.dataset.act==="rm"){state.prob.conds.splice(1,1);}
       showProb();});
     segWire("momentFwd","momentFwd",v=>v);segWire("cadence","cadence",v=>v);segWire("momentTerm","momentTerm",v=>v);
+    // Trades / Quotes source toggle: clears the caches (which hold active-source
+    // data) and reloads, so every view re-reads from the selected tables.
+    $("sourceSel").addEventListener("click",e=>{const b=e.target.closest("button");if(!b||state.source===b.dataset.s)return;
+      [...$("sourceSel").children].forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");
+      state.source=b.dataset.s;state.data={};state.dist={};loadSeriesSafe();});
     function riskSeg(id,key,attr){$(id).addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
       [...$(id).children].forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");
       state[key]=b.dataset[attr];if(state.data[state.series])renderRisk();});}
@@ -1254,6 +1275,7 @@
       `Term structure: up to four as-of dates. Uncertainty &amp; skew: the implied standard deviation and asymmetry of the distribution, by horizon or over time. `+
       `Event study: how the distribution reacts to each release/meeting — per-event moves of the nearest surviving contract, or every contract aligned to its own resolution (no external shock data; events are the contracts' own settlement dates). `+
       `Compare: overlay several series/contracts/measures on one date axis (e.g. CPI vs Fed Funds), with an optional second y-axis; view as a chart or a table and download the aligned CSV. `+
+      `Source: switch the whole distribution between executed Trades and the bid/ask Quote midpoint (order book) — quotes cover FFR, CPI (YoY/core/MoM), unemployment and quarterly GDP. `+
       `Data: browse contracts with sparklines and download the full daily history as CSV. `+
       `“Min contracts/day” sets a liquidity floor: thin days are excluded from the curves and drawn dashed (held or as-traded) on the time series. `+
       `Contract target dates are the nominal period mid-month; as-of matching uses the nearest qualifying observation within ~6 weeks.`;

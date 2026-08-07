@@ -60,30 +60,47 @@ def preamble(ticker):
     return ticker[:i] if i >= 0 else ticker
 
 
-def parse_strike(ticker):
-    """Strike from the -T suffix; leading N = negative (e.g. -TN0.5)."""
-    i = ticker.rfind("-T")
+def parse_strike(market):
+    """Strike from Kalshi's floor_strike, falling back to the -T ticker suffix
+    (leading N = negative, e.g. -TN0.5). Mirrors the audit / R conversion."""
+    s = market.get("floor_strike")
+    if s is not None:
+        return _num(s)
+    tk = str(market.get("ticker") or "")
+    i = tk.rfind("-T")
     if i < 0:
         return None
-    raw = ticker[i + 2:]
+    raw = tk[i + 2:]
     if raw.startswith("N"):
         raw = "-" + raw[1:]
     return _num(raw)
 
 
-def fetch_open_markets(series_ticker):
+def _iso_ts(v):
+    if not v:
+        return None
+    try:
+        return dt.datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def fetch_markets(series_ticker):
+    """All markets for a series via the public endpoint (no status filter — the
+    same call the strike audit uses; a status filter returned nothing)."""
     out, cursor = [], None
-    for _ in range(20):
-        params = {"series_ticker": series_ticker, "limit": 1000, "status": "open"}
+    for _ in range(50):
+        params = {"series_ticker": series_ticker, "limit": 1000}
         if cursor:
             params["cursor"] = cursor
-        r = requests.get(BASE + "/markets", params=params, timeout=20)
+        r = requests.get(BASE + "/markets", params=params, timeout=30)
         r.raise_for_status()
         j = r.json()
         out.extend(j.get("markets") or [])
         cursor = j.get("cursor") or None
         if not cursor:
             break
+        time.sleep(0.15)
     return out
 
 
@@ -138,25 +155,27 @@ def moments(bins, madj):
     }
 
 
-def snapshot_series(key, cfg, asof):
-    """Return (dist_rows, mom_rows) for one series' open contracts."""
-    markets = fetch_open_markets(cfg["ticker"])
-    # group strikes by contract
+def snapshot_series(key, cfg, asof, now):
+    """Return (dist_rows, mom_rows) for one series' currently-open contracts."""
+    markets = fetch_markets(cfg["ticker"])
+    # group strikes by contract, keeping only markets that are still open (close
+    # in the future) and carry a live quote
     by_contract = {}
     for m in markets:
         tk = str(m.get("ticker") or "")
         if not tk:
             continue
-        strike = parse_strike(tk)
+        close = _iso_ts(m.get("close_time"))
+        if close is None or close <= now:      # expired / unlisted -> skip
+            continue
+        strike = parse_strike(m)
         if strike is None:
             continue
         bid, ask = _num(m.get("yes_bid")), _num(m.get("yes_ask"))
-        if bid is None and ask is None:
-            continue
-        mid = (bid + ask) / 2 if (bid is not None and ask is not None) else (bid if bid is not None else ask)
-        if mid <= 1:            # normalize dollars -> cents if needed
-            mid *= 100
-        mid = min(100.0, max(0.0, mid))
+        if (bid is None or bid == 0) and (ask is None or ask == 0):
+            continue                            # no live quote on this strike
+        mid = (bid + ask) / 2 if (bid and ask) else (bid or ask)
+        mid = min(100.0, max(0.0, mid))         # yes_bid/yes_ask are in cents
         by_contract.setdefault(preamble(tk), []).append((strike * cfg["scale"], mid))
 
     dist_rows, mom_rows = [], []
@@ -177,11 +196,12 @@ def snapshot_series(key, cfg, asof):
 
 
 def main():
-    asof = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
+    now = dt.datetime.now(dt.timezone.utc)
+    asof = now.replace(microsecond=0).isoformat()
     all_dist, all_mom = [], []
     for key, cfg in SERIES.items():
         try:
-            d, mo = snapshot_series(key, cfg, asof)
+            d, mo = snapshot_series(key, cfg, asof, now)
             all_dist.extend(d)
             all_mom.extend(mo)
             print("{}: {} contracts, {} dist rows".format(key, len(mo), len(d)))

@@ -502,9 +502,13 @@ get_moments <- function(df, moment_adjustment) {
 #' @return No return value. Writes processed data to specified output files.
 extract_distributions <- function(input_file, output_distributions, output_moments, strike_int,
                                   days_before_horizon, end_date = as.Date('2025-10-01'),
-                                  moment_adjustment=0) {
-  
+                                  moment_adjustment=0, strike_scale = 1) {
+
   df <- read_bid_ask(input_file = input_file)
+  # Rescale strikes (e.g. payrolls list strikes in absolute jobs; scale to
+  # thousands so the grid, bins, and moments line up with the trade path and the
+  # FRED realised series). Mirrors convert_trade_level_data_cdfs.R.
+  if (strike_scale != 1) df <- df %>% mutate(strike = strike * strike_scale)
   df <- fill_dataless_days(df, days_before_horizon)
   df <- clean_data(df)
   

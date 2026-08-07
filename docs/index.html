@@ -1206,7 +1206,7 @@
       await fetchSeries(k);
       if(!Object.keys(state.data[k].byContract).length){
         $("status").textContent=state.source==="quote"
-          ?`No quote-based data for ${CFG.SERIES_META[k]?.label||k}. Quotes currently cover Fed Funds, CPI (YoY/core/MoM), unemployment, and quarterly GDP — switch Source back to Trades for this series.`
+          ?`No quote-based data for ${CFG.SERIES_META[k]?.label||k}. Quotes currently cover Fed Funds, CPI (YoY/core/MoM), unemployment, quarterly GDP, and nonfarm payrolls — switch Source back to Trades for this series.`
           :`No data yet for ${CFG.SERIES_META[k]?.label||k}. The pipeline may still be seeding — check back shortly.`;
         return;}}
     fillContractSelect(k);
@@ -1315,7 +1315,7 @@
         const q=`series=eq.${encodeURIComponent(state.series)}&contract_preamble=eq.${encodeURIComponent(state.contract)}`;
         // most recent quote date for this contract
         const latest=await pgFetch("daily_moments_quotes",`select=date,mean,median,mode,variance&${q}&order=date.desc&limit=1`);
-        if(!latest.length){alert("No quote-based distribution for this contract yet.\n\nQuote data currently covers Fed Funds, CPI (YoY / core / MoM), unemployment and quarterly GDP. It's refreshed by the daily pipeline — check back after the next run.");return;}
+        if(!latest.length){alert("No quote-based distribution for this contract yet.\n\nQuote data covers Fed Funds, CPI (YoY / core / MoM), unemployment, quarterly GDP, and nonfarm payrolls. It's refreshed by the daily pipeline — check back after the next run.");return;}
         const d0=latest[0].date;
         const dist=await pgFetch("daily_distributions_quotes",`select=strike,probability&${q}&date=eq.${d0}&order=strike`);
         if(!dist.length){alert("No quote distribution rows for the latest date yet — check back after the next daily run.");return;}

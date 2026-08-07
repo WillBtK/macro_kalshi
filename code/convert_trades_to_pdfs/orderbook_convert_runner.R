@@ -15,7 +15,7 @@ source("code/convert_trades_to_pdfs/convert_bid_ask_data_cdfs.R")
 # cutoff that would drop current/recent contracts.
 KEEP_ALL <- as.Date("2100-01-01")
 
-run_one <- function(key, strike_int, horizon, madj) {
+run_one <- function(key, strike_int, horizon, madj, strike_scale = 1) {
   tryCatch(
     extract_distributions(
       input_file           = paste0("data/orderbook_data/orderbook_", key, ".csv"),
@@ -24,14 +24,18 @@ run_one <- function(key, strike_int, horizon, madj) {
       strike_int           = strike_int,
       days_before_horizon  = horizon,
       end_date             = KEEP_ALL,
-      moment_adjustment    = madj),
+      moment_adjustment    = madj,
+      strike_scale         = strike_scale),
     error = function(e) message("quote conversion failed for ", key, ": ", conditionMessage(e)))
 }
 
-# key                         strike_int  horizon  moment_adjustment  (match the trade runner)
+# key                         strike_int  horizon  moment_adjustment  [strike_scale]  (match the trade runner)
 run_one("fed_levels",                0.25,   180,   0.125)
 run_one("headline_cpi_releases",     0.1,    30,    0.1)
 run_one("core_cpi_releases",         0.1,    30,    0.1)
 run_one("headline_cpi_releases_mom", 0.1,    30,    0.1)
 run_one("unemployment_releases",     0.1,    30,    0.1)
 run_one("gdp_quarterly",             0.5,    400,   0.25)
+# Payrolls: strikes listed in absolute jobs, scaled to thousands (0.001) to match
+# the trade path / FRED. strike_int 10 (thousands) = Kalshi's 10k ladder; madj = strike_int/2.
+run_one("nonfarm_payrolls",          10,     45,    5,     0.001)

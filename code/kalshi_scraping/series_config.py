@@ -80,9 +80,9 @@ DIST_DIR = "data/daily_distribution_data"
 # A parallel distribution derived from Kalshi's daily candlestick bid/ask
 # midpoint across strikes (the order book), rather than executed trades. It
 # reflects the live cross-strike price structure even on days/strikes with no
-# trades. Only the CDF threshold markets the order-book converter handles
-# without strike scaling are enabled for now; nonfarm payrolls (needs
-# strike_scale) and the annual bracket markets (PDF path) are excluded.
+# trades. Covers the CDF threshold markets; the order-book converter now applies
+# per-series strike_scale, so nonfarm payrolls is included (strikes scaled to
+# thousands). The annual bracket markets (PDF path) remain excluded.
 QUOTE_SERIES = [
     "fed_levels",
     "headline_cpi_releases",
@@ -90,6 +90,7 @@ QUOTE_SERIES = [
     "headline_cpi_releases_mom",
     "unemployment_releases",
     "gdp_quarterly",
+    "nonfarm_payrolls",
 ]
 ORDERBOOK_DIR = "data/orderbook_data"                 # raw candlestick CSVs (per series)
 BA_MOMENTS_DIR = "data/daily_bid_ask_moments_data"    # quote-derived moments

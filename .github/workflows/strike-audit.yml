@@ -27,3 +27,19 @@ jobs:
 
       - name: Run strike-grid audit
         run: python code/kalshi_scraping/audit_strikes.py
+
+      # Diagnostic: does Kalshi's public API return CORS headers that would let a
+      # browser on the Pages origin call it directly (for the live-distribution
+      # button)? If access-control-allow-origin appears, client-side works;
+      # otherwise we need the Supabase Edge Function proxy.
+      - name: Probe Kalshi CORS
+        run: |
+          echo "== OPTIONS preflight (Origin: pages) =="
+          curl -sS -i -X OPTIONS \
+            "https://api.elections.kalshi.com/trade-api/v2/markets?series_ticker=KXCPIYOY&limit=1" \
+            -H "Origin: https://willbtk.github.io" \
+            -H "Access-Control-Request-Method: GET" 2>&1 | grep -iE "^HTTP/|access-control|allow-" || echo "(no CORS/allow headers on OPTIONS)"
+          echo "== GET with Origin =="
+          curl -sS -i \
+            "https://api.elections.kalshi.com/trade-api/v2/markets?series_ticker=KXCPIYOY&limit=1" \
+            -H "Origin: https://willbtk.github.io" 2>&1 | grep -iE "^HTTP/|access-control" || echo "(no access-control headers on GET)"

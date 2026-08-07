@@ -63,8 +63,9 @@ START_TS = int((dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=200)).times
 # tight so the whole scrape completes well inside the wall-clock budget.
 RECENT_DAYS = 90
 # Hard wall-clock budget for the whole scrape; on exceeding it we write what we
-# have and stop, logging the truncation (never a silent cap).
-MAX_SECONDS = 1500
+# have and stop, logging the truncation (never a silent cap). Runs LAST in the
+# daily workflow (after trades + FRED), so a longer budget never delays trade data.
+MAX_SECONDS = 3000
 CALL_SLEEP = 0.1  # polite delay between candlestick calls
 
 FIELDS = [
@@ -135,7 +136,10 @@ def _fp(v):
 def main():
     started = time.monotonic()
     end_ts = int(dt.datetime.now(dt.timezone.utc).timestamp())
-    cutoff_ts = end_ts - RECENT_DAYS * 86400
+    # Scope to markets still OPEN (close in the future) plus a short just-closed
+    # tail — the live/recent quote views only need currently-listed contracts, and
+    # dropping the long tail of expired markets is what lets all six series finish.
+    cutoff_ts = end_ts - 5 * 86400
     os.makedirs(ORDERBOOK_DIR, exist_ok=True)
     client = make_client()
     by_key = {s["key"]: s for s in SERIES}

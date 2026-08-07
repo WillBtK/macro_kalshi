@@ -9,8 +9,11 @@ reads (read_bid_ask). This lets the pipeline derive a market-implied distributio
 from the live order-book midpoint across strikes, not only from executed trades.
 
 Public (unauthenticated) Kalshi endpoints only — no credentials. Run from the
-repo root. The daily-data workflow runs this on a GitHub Actions runner (which
-can reach Kalshi); egress-restricted sandboxes will 403.
+repo root. Kalshi rate-limits aggressively, so this scrapes only RECENT / open
+markets (older expired contracts' quote history is static and not needed for the
+live views) and enforces an overall wall-clock budget so it can never stall the
+daily pipeline. The daily-data workflow runs it AFTER the trade pipeline, so even
+a slow/failed order-book scrape can't delay trade data.
 """
 
 import csv
@@ -31,8 +34,14 @@ BASE = "https://api.elections.kalshi.com/trade-api/v2"
 PERIOD = 1440  # daily candles
 START_TS = int(dt.datetime(2022, 1, 1, tzinfo=dt.timezone.utc).timestamp())
 
-# Column order matches what read_bid_ask() in convert_bid_ask_data_cdfs.R expects
-# (the original orderbook_scraping.py output), so the R side finds every column.
+# Only scrape markets that closed within this window (or are still open). Older
+# expired contracts don't change and aren't shown in the live quote views.
+RECENT_DAYS = 240
+# Hard wall-clock budget for the whole scrape; on exceeding it we write what we
+# have and stop, logging the truncation (never a silent cap).
+MAX_SECONDS = 1500
+CALL_SLEEP = 0.1  # polite delay between candlestick calls
+
 FIELDS = [
     "series", "event_ticker", "market_ticker", "end_period_utc",
     "yes_bid_open", "yes_bid_high", "yes_bid_low", "yes_bid_close",
@@ -42,33 +51,50 @@ FIELDS = [
 ]
 
 
+def _ts(iso):
+    if not iso:
+        return None
+    try:
+        return dt.datetime.fromisoformat(iso.replace("Z", "+00:00")).timestamp()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def is_recent(m, cutoff_ts):
+    """Keep open markets (no/blank close) and those that closed after the cutoff."""
+    t = _ts(m.get("close_time"))
+    return (t is None) or (t >= cutoff_ts)
+
+
 def fetch_candles(series_ticker, market_ticker, end_ts):
-    """Daily candlesticks for one market, with light retry/backoff."""
+    """Daily candlesticks for one market, with capped retry/backoff on 429/5xx."""
     url = "{}/series/{}/markets/{}/candlesticks".format(BASE, series_ticker, market_ticker)
     params = {"start_ts": START_TS, "end_ts": end_ts, "period_interval": PERIOD}
-    for attempt in range(4):
+    for attempt in range(3):
         try:
-            r = requests.get(url, params=params, timeout=30)
+            r = requests.get(url, params=params, timeout=20)
             if r.status_code == 429 or r.status_code >= 500:
-                time.sleep(2 ** attempt)
+                time.sleep(min(4, 1 + attempt * 2))
                 continue
             r.raise_for_status()
             return r.json().get("candlesticks", []) or []
         except requests.RequestException:
-            time.sleep(2 ** attempt)
+            time.sleep(min(4, 1 + attempt * 2))
     return []
 
 
 def ohlc(candle, side):
-    """Return (open, high, low, close) for a candle side, tolerating gaps."""
     d = candle.get(side) or {}
     return d.get("open"), d.get("high"), d.get("low"), d.get("close")
 
 
 def main():
+    started = time.monotonic()
     end_ts = int(dt.datetime.now(dt.timezone.utc).timestamp())
+    cutoff_ts = end_ts - RECENT_DAYS * 86400
     os.makedirs(ORDERBOOK_DIR, exist_ok=True)
     by_key = {s["key"]: s for s in SERIES}
+    truncated = False
     for key in QUOTE_SERIES:
         s = by_key.get(key)
         if not s:
@@ -80,11 +106,17 @@ def main():
         except Exception as e:  # noqa: BLE001
             print("{}: market discovery failed ({}); skipping".format(key, e))
             continue
+        recent = [m for m in markets if is_recent(m, cutoff_ts)]
         rows = []
-        for m in markets:
+        scanned = 0
+        for m in recent:
+            if time.monotonic() - started > MAX_SECONDS:
+                truncated = True
+                break
             tk = m.get("ticker")
             if not tk:
                 continue
+            scanned += 1
             for c in fetch_candles(series_ticker, tk, end_ts):
                 ts = c.get("end_period_ts")
                 if ts is None:
@@ -103,13 +135,17 @@ def main():
                     "volume": c.get("volume"),
                     "open_interest": c.get("open_interest"),
                 })
-            time.sleep(0.2)
+            time.sleep(CALL_SLEEP)
         out = os.path.join(ORDERBOOK_DIR, "orderbook_{}.csv".format(key))
         with open(out, "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=FIELDS)
             w.writeheader()
             w.writerows(rows)
-        print("{}: {} candlestick rows from {} markets -> {}".format(key, len(rows), len(markets), out))
+        print("{}: {} candlestick rows from {}/{} recent markets ({} total) -> {}".format(
+            key, len(rows), scanned, len(recent), len(markets), out))
+        if truncated:
+            print("WARNING: wall-clock budget ({}s) hit; order-book scrape truncated at series {}.".format(MAX_SECONDS, key))
+            break
     print("Order-book scrape complete.")
 
 

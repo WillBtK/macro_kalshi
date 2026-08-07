@@ -23,14 +23,36 @@ import sys
 import time
 
 import requests
+from cryptography.hazmat.primitives import serialization
 
 repo_root = os.getcwd()
 sys.path.append(os.path.join(repo_root, "code/kalshi_scraping"))
 
 import tickers as tickers_mod
 from series_config import SERIES, QUOTE_SERIES, ORDERBOOK_DIR
+from clients_kalshi import KalshiHttpClient, Environment
 
 BASE = "https://api.elections.kalshi.com/trade-api/v2"
+
+
+def make_client():
+    """Authenticated Kalshi client. Bid/ask (order-book) candlestick data is only
+    returned to AUTHENTICATED requests — unauthenticated calls return null
+    yes_bid/yes_ask — so the order-book scrape must sign its requests, exactly
+    like the trades scrape. Reuses the same KALSHI_KEYID / KALSHI_PRIVATE_KEY."""
+    key_id = os.getenv("KALSHI_KEYID")
+    pem = os.getenv("KALSHI_PRIVATE_KEY")
+    keyfile = os.getenv("KALSHI_KEYFILE")
+    if not key_id:
+        raise RuntimeError("KALSHI_KEYID is not set (order-book bid/ask needs auth).")
+    if pem:
+        private_key = serialization.load_pem_private_key(pem.encode(), password=None)
+    elif keyfile:
+        with open(keyfile, "rb") as f:
+            private_key = serialization.load_pem_private_key(f.read(), password=None)
+    else:
+        raise RuntimeError("Set KALSHI_PRIVATE_KEY (inline PEM) or KALSHI_KEYFILE.")
+    return KalshiHttpClient(key_id=key_id, private_key=private_key, environment=Environment.PROD)
 PERIOD = 1440  # daily candles
 START_TS = int(dt.datetime(2022, 1, 1, tzinfo=dt.timezone.utc).timestamp())
 
@@ -66,21 +88,15 @@ def is_recent(m, cutoff_ts):
     return (t is None) or (t >= cutoff_ts)
 
 
-def fetch_candles(series_ticker, market_ticker, end_ts):
-    """Daily candlesticks for one market, with capped retry/backoff on 429/5xx."""
-    url = "{}/series/{}/markets/{}/candlesticks".format(BASE, series_ticker, market_ticker)
+def fetch_candles(client, series_ticker, market_ticker, end_ts):
+    """Daily candlesticks (with yes_bid / yes_ask OHLC) for one market, via the
+    AUTHENTICATED client. The client handles rate-limiting and retry/backoff."""
+    path = "/trade-api/v2/series/{}/markets/{}/candlesticks".format(series_ticker, market_ticker)
     params = {"start_ts": START_TS, "end_ts": end_ts, "period_interval": PERIOD}
-    for attempt in range(3):
-        try:
-            r = requests.get(url, params=params, timeout=20)
-            if r.status_code == 429 or r.status_code >= 500:
-                time.sleep(min(4, 1 + attempt * 2))
-                continue
-            r.raise_for_status()
-            return r.json().get("candlesticks", []) or []
-        except requests.RequestException:
-            time.sleep(min(4, 1 + attempt * 2))
-    return []
+    try:
+        return client.get(path, params=params).get("candlesticks", []) or []
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def ohlc(candle, side):
@@ -93,6 +109,7 @@ def main():
     end_ts = int(dt.datetime.now(dt.timezone.utc).timestamp())
     cutoff_ts = end_ts - RECENT_DAYS * 86400
     os.makedirs(ORDERBOOK_DIR, exist_ok=True)
+    client = make_client()
     by_key = {s["key"]: s for s in SERIES}
     truncated = False
     for key in QUOTE_SERIES:
@@ -117,7 +134,7 @@ def main():
             if not tk:
                 continue
             scanned += 1
-            for c in fetch_candles(series_ticker, tk, end_ts):
+            for c in fetch_candles(client, series_ticker, tk, end_ts):
                 ts = c.get("end_period_ts")
                 if ts is None:
                     continue

@@ -1,0 +1,24 @@
+name: Candle probe
+
+# One-off diagnostic: dump the raw shape of Kalshi's candlestick + orderbook
+# responses (authenticated) so we can fix the quote parser. No DB writes.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install requests cryptography pandas websockets
+      - name: Probe candlesticks
+        env:
+          KALSHI_KEYID: ${{ secrets.KALSHI_KEYID }}
+          KALSHI_PRIVATE_KEY: ${{ secrets.KALSHI_PRIVATE_KEY }}
+        run: python code/kalshi_scraping/probe_candles.py

@@ -1,0 +1,41 @@
+name: Live snapshot
+
+# Refresh the "live" bid/ask-midpoint distribution snapshot for open contracts.
+# Lightweight (one public markets page per series + a small DB write), so it runs
+# hourly. The front-end's "Live now" button reads the resulting Supabase tables
+# directly — no browser-to-Kalshi call and no Edge Function required.
+on:
+  schedule:
+    - cron: "0 * * * *"     # top of every hour (UTC)
+  workflow_dispatch:
+
+# A snapshot write never overlaps the daily pipeline's derived-table writes (it
+# only touches its own live_snapshot_* tables), but serialise snapshot runs so
+# two don't race on the whole-table replace.
+concurrency:
+  group: live-snapshot
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests psycopg2-binary
+
+      - name: Write live snapshot
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: python code/kalshi_scraping/snapshot_live.py

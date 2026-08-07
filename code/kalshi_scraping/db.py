@@ -121,6 +121,31 @@ CREATE TABLE IF NOT EXISTS daily_distributions_quotes (
     daily_volume       DOUBLE PRECISION,
     PRIMARY KEY (series, contract_preamble, date, strike)
 );
+
+-- "Live" snapshot: the CURRENT bid/ask-midpoint distribution across strikes for
+-- each open contract, refreshed on a short schedule (a single instant per run).
+-- The front-end's "Live now" button reads these directly via PostgREST — no
+-- Edge Function / browser-to-Kalshi call needed. Whole-table replace each run.
+CREATE TABLE IF NOT EXISTS live_snapshot_dist (
+    series             TEXT NOT NULL,
+    contract_preamble  TEXT NOT NULL,
+    asof               TIMESTAMPTZ NOT NULL,
+    strike             DOUBLE PRECISION NOT NULL,
+    probability        DOUBLE PRECISION,
+    PRIMARY KEY (series, contract_preamble, strike)
+);
+
+CREATE TABLE IF NOT EXISTS live_snapshot_moments (
+    series             TEXT NOT NULL,
+    contract_preamble  TEXT NOT NULL,
+    asof               TIMESTAMPTZ NOT NULL,
+    mean               DOUBLE PRECISION,
+    median             DOUBLE PRECISION,
+    mode               DOUBLE PRECISION,
+    sd                 DOUBLE PRECISION,
+    n_strikes          INTEGER,
+    PRIMARY KEY (series, contract_preamble)
+);
 """
 
 # Expose the derived tables (public market data) read-only to the Supabase
@@ -136,6 +161,8 @@ BEGIN
   EXECUTE 'ALTER TABLE underlying_first_release ENABLE ROW LEVEL SECURITY';
   EXECUTE 'ALTER TABLE daily_moments_quotes ENABLE ROW LEVEL SECURITY';
   EXECUTE 'ALTER TABLE daily_distributions_quotes ENABLE ROW LEVEL SECURITY';
+  EXECUTE 'ALTER TABLE live_snapshot_dist ENABLE ROW LEVEL SECURITY';
+  EXECUTE 'ALTER TABLE live_snapshot_moments ENABLE ROW LEVEL SECURITY';
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
@@ -159,12 +186,18 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='daily_distributions_quotes' AND policyname='public_read') THEN
     EXECUTE 'CREATE POLICY public_read ON daily_distributions_quotes FOR SELECT USING (true)';
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='live_snapshot_dist' AND policyname='public_read') THEN
+    EXECUTE 'CREATE POLICY public_read ON live_snapshot_dist FOR SELECT USING (true)';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='live_snapshot_moments' AND policyname='public_read') THEN
+    EXECUTE 'CREATE POLICY public_read ON live_snapshot_moments FOR SELECT USING (true)';
+  END IF;
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
 DO $$
 BEGIN
-  EXECUTE 'GRANT SELECT ON daily_moments, daily_distributions, underlying_history, underlying_first_release, daily_moments_quotes, daily_distributions_quotes TO anon, authenticated';
+  EXECUTE 'GRANT SELECT ON daily_moments, daily_distributions, underlying_history, underlying_first_release, daily_moments_quotes, daily_distributions_quotes, live_snapshot_dist, live_snapshot_moments TO anon, authenticated';
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
@@ -348,6 +381,28 @@ def replace_quote_distributions(conn, series, rows):
                    probability, yes_price, adjusted_yes_price, daily_volume)
                 VALUES %s
             """, [(series,) + r for r in rows], page_size=2000)
+    conn.commit()
+
+
+def replace_live_snapshot(conn, dist_rows, mom_rows):
+    """Replace the whole live snapshot in one transaction.
+    dist_rows: (series, contract_preamble, asof, strike, probability).
+    mom_rows:  (series, contract_preamble, asof, mean, median, mode, sd, n_strikes)."""
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM live_snapshot_dist")
+        cur.execute("DELETE FROM live_snapshot_moments")
+        if dist_rows:
+            execute_values(cur, """
+                INSERT INTO live_snapshot_dist
+                  (series, contract_preamble, asof, strike, probability)
+                VALUES %s
+            """, dist_rows, page_size=2000)
+        if mom_rows:
+            execute_values(cur, """
+                INSERT INTO live_snapshot_moments
+                  (series, contract_preamble, asof, mean, median, mode, sd, n_strikes)
+                VALUES %s
+            """, mom_rows, page_size=1000)
     conn.commit()
 
 

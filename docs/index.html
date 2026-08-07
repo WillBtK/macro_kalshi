@@ -238,7 +238,7 @@
     <p id="cap-ts" class="cap"></p>
     <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
       <h2 class="sec" style="margin-right:auto">Probability distribution</h2>
-      <button id="liveBtn" class="dlbtn" title="Fetch the current bid/ask-midpoint distribution from Kalshi right now">⚡ Live now</button>
+      <button id="liveBtn" class="dlbtn" title="Overlay the latest bid/ask-midpoint distribution (snapshot refreshed hourly)">⚡ Live now</button>
       <button id="liveClear" class="dlbtn hidden" style="background:var(--bg);color:var(--ink)">Clear live</button>
     </div>
     <div id="hist" class="hist"></div>
@@ -608,9 +608,9 @@
     if(mean!=null){shapes.push({type:"line",x0:mean,x1:mean,yref:"paper",y0:0,y1:1,line:{color:cssv("--ink"),width:1.3,dash:"dash"}});
       anns.push({x:mean,y:1,yref:"paper",yanchor:"bottom",text:`mean ${fmt(mean)}`,showarrow:false,font:{size:11,color:cssv("--ink")}});}
     const traces=[{type:"bar",x:xs,y:ys,marker:{color:colors},width:xs.length>1?(xs[1]-xs[0])*0.7:0.1,hovertemplate:`outcome %{x}${meta.unit||""}<br>%{y:.1f}%<extra></extra>`}];
-    // Live overlay: the current bid/ask-midpoint distribution pulled on demand
-    // from Kalshi (via the Edge Function). Shown only when it matches the series
-    // + contract currently on screen, so switching away hides it automatically.
+    // Live overlay: the latest bid/ask-midpoint distribution (a scheduled snapshot
+    // written to Supabase). Shown only when it matches the series + contract
+    // currently on screen, so switching away hides it automatically.
     const lv=state.live;
     if(lv&&lv.series===state.series&&lv.contract===state.contract&&Array.isArray(lv.strikes)&&lv.strikes.length){
       traces.push({type:"scatter",mode:"lines+markers",x:lv.strikes,y:lv.probs,name:"Live",
@@ -618,8 +618,8 @@
         hovertemplate:`live %{x}${meta.unit||""}<br>%{y:.1f}%<extra></extra>`});
       if(lv.mean!=null){shapes.push({type:"line",x0:lv.mean,x1:lv.mean,yref:"paper",y0:0,y1:1,line:{color:cssv("--s2"),width:1.3,dash:"dot"}});
         anns.push({x:lv.mean,y:1,yref:"paper",yanchor:"bottom",text:`live ${fmt(lv.mean)}`,showarrow:false,font:{size:11,color:cssv("--s2")}});}
-      const t=new Date(lv.asof),hhmm=isNaN(t)?"":` as of ${String(t.getHours()).padStart(2,"0")}:${String(t.getMinutes()).padStart(2,"0")}`;
-      $("cap-hist").textContent+=` Orange line = live bid/ask-midpoint distribution${hhmm} (${lv.n_strikes} strikes).`;
+      const t=new Date(lv.asof),stamp=isNaN(t)?"":` as of ${t.toLocaleString([], {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}`;
+      $("cap-hist").textContent+=` Orange line = latest bid/ask-midpoint distribution${stamp} (${lv.n_strikes} strikes).`;
     }
     Plotly.react("hist",traces,
       baseLayout({shapes,annotations:anns,showlegend:false,margin:{t:22,r:14,b:40,l:44},
@@ -1303,21 +1303,27 @@
     $("sourceSel").addEventListener("click",e=>{const b=e.target.closest("button");if(!b||state.source===b.dataset.s)return;
       [...$("sourceSel").children].forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");
       state.source=b.dataset.s;state.data={};state.dist={};loadSeriesSafe();});
-    // "Live now": pull the current bid/ask-midpoint distribution for the on-screen
-    // series+contract from Kalshi (server-side via the Supabase Edge Function,
-    // since Kalshi blocks direct browser calls) and overlay it on the histogram.
+    // "Live now": overlay the latest bid/ask-midpoint distribution for the on-screen
+    // series+contract. A scheduled GitHub Action refreshes this snapshot into
+    // Supabase (Kalshi blocks direct browser calls), so the button just reads those
+    // tables via PostgREST — same instant across all strikes, stamped with its asof.
     async function pullLive(){
-      const btn=$("liveBtn");
+      const btn=$("liveBtn"),meta=CFG.SERIES_META[state.series]||{};
       if(!state.data[state.series]||!state.contract){alert("Pick a series and contract first.");return;}
       const orig=btn.textContent;btn.disabled=true;btn.textContent="Fetching…";
       try{
-        const u=`${CFG.SUPABASE_URL}/functions/v1/live-distribution?series=${encodeURIComponent(state.series)}&contract=${encodeURIComponent(state.contract)}`;
-        const r=await fetch(u,{headers:{apikey:CFG.SUPABASE_ANON_KEY,Authorization:`Bearer ${CFG.SUPABASE_ANON_KEY}`}});
-        const j=await r.json().catch(()=>({}));
-        if(!r.ok||j.error){alert("Live pull failed: "+(j.error||`HTTP ${r.status}`)+
-          "\n\n(The live feature needs the 'live-distribution' Edge Function deployed to Supabase.)");return;}
-        state.live=j;$("liveClear").classList.remove("hidden");renderHist();
-      }catch(e){alert("Live pull failed: "+e+"\n\n(Network error, or the Edge Function isn't deployed yet.)");}
+        const q=`series=eq.${encodeURIComponent(state.series)}&contract_preamble=eq.${encodeURIComponent(state.contract)}`;
+        const [dist,mom]=await Promise.all([
+          pgFetch("live_snapshot_dist",`select=asof,strike,probability&${q}&order=strike`),
+          pgFetch("live_snapshot_moments",`select=asof,mean,median,mode,sd,n_strikes&${q}`)]);
+        if(!dist.length){alert("No live snapshot for this contract yet.\n\nThe hourly snapshot may not have run, or this contract isn't currently open on Kalshi. Try again shortly, or pick an open contract.");return;}
+        const m0=mom[0]||{};
+        state.live={series:state.series,contract:state.contract,unit:meta.unit||"",
+          asof:m0.asof||dist[0].asof,n_strikes:m0.n_strikes!=null?m0.n_strikes:dist.length,
+          strikes:dist.map(r=>+r.strike),probs:dist.map(r=>+r.probability),
+          mean:m0.mean,median:m0.median,mode:m0.mode,sd:m0.sd};
+        $("liveClear").classList.remove("hidden");renderHist();
+      }catch(e){alert("Live pull failed: "+e);}
       finally{btn.disabled=false;btn.textContent=orig;}
     }
     $("liveBtn").addEventListener("click",pullLive);

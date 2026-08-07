@@ -116,6 +116,9 @@ jobs:
       # -----------------------
       - name: Scrape order book (bid/ask candlesticks)
         if: always()
+        env:
+          KALSHI_KEYID: ${{ secrets.KALSHI_KEYID }}
+          KALSHI_PRIVATE_KEY: ${{ secrets.KALSHI_PRIVATE_KEY }}
         run: python code/kalshi_scraping/scrape_orderbook.py
 
       - name: Convert order book to quote distributions

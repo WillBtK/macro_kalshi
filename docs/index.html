@@ -623,6 +623,7 @@
         stamp=isNaN(t)?"":` as of ${t.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}`;}
       else if(lv.asof){stamp=` as of ${fmtD(String(lv.asof).slice(0,10))}`;}
       $("cap-hist").textContent+=` Orange line = ${kind} distribution${stamp} (${lv.n_strikes} strikes).`;
+      if(!lv.live&&lv.edgeErr)$("cap-hist").textContent+=` Real-time pull unavailable — ${lv.edgeErr}.`;
     }
     Plotly.react("hist",traces,
       baseLayout({shapes,annotations:anns,showlegend:false,margin:{t:22,r:14,b:40,l:44},
@@ -1337,10 +1338,11 @@
       if(!state.data[state.series]||!state.contract){alert("Pick a series and contract first.");return;}
       const orig=btn.textContent;btn.disabled=true;btn.textContent="Fetching…";
       try{
-        let lv=null;
+        let lv=null,edgeErr=null;
         try{ lv=await fetchLiveEdge(); }        // real-time, if the Edge Function is deployed
-        catch(_e){ lv=await fetchDailySnapshot(); }  // else latest daily quote snapshot
-        if(!lv){alert("No quote-based distribution for this contract yet.\n\nQuote data covers Fed Funds, CPI (YoY / core / MoM), unemployment, quarterly GDP, and nonfarm payrolls, refreshed by the daily pipeline. For real-time, deploy the live-quotes Edge Function (see setup notes).");return;}
+        catch(e){ edgeErr=String(e&&e.message||e); lv=await fetchDailySnapshot(); }  // else latest daily snapshot
+        if(lv&&!lv.live&&edgeErr)lv.edgeErr=edgeErr;  // surface why the real-time pull didn't fire
+        if(!lv){alert("No quote-based distribution for this contract yet.\n\nQuote data covers Fed Funds, CPI (YoY / core / MoM), unemployment, quarterly GDP, and nonfarm payrolls, refreshed by the daily pipeline."+(edgeErr?"\n\nReal-time (Edge Function) said: "+edgeErr:""));return;}
         state.live=lv;$("liveClear").classList.remove("hidden");renderHist();
       }catch(e){alert("Quote pull failed: "+e);}
       finally{btn.disabled=false;btn.textContent=orig;}

@@ -54,11 +54,14 @@ def make_client():
         raise RuntimeError("Set KALSHI_PRIVATE_KEY (inline PEM) or KALSHI_KEYFILE.")
     return KalshiHttpClient(key_id=key_id, private_key=private_key, environment=Environment.PROD)
 PERIOD = 1440  # daily candles
-START_TS = int(dt.datetime(2022, 1, 1, tzinfo=dt.timezone.utc).timestamp())
+# Only pull recent candles — the quote views show recent dates, and a shorter
+# window means far fewer candles per market (faster transfer, smaller payload).
+START_TS = int((dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=200)).timestamp())
 
 # Only scrape markets that closed within this window (or are still open). Older
-# expired contracts don't change and aren't shown in the live quote views.
-RECENT_DAYS = 240
+# expired contracts don't change and aren't shown in the live quote views. Kept
+# tight so the whole scrape completes well inside the wall-clock budget.
+RECENT_DAYS = 90
 # Hard wall-clock budget for the whole scrape; on exceeding it we write what we
 # have and stop, logging the truncation (never a silent cap).
 MAX_SECONDS = 1500
@@ -99,9 +102,34 @@ def fetch_candles(client, series_ticker, market_ticker, end_ts):
         return []
 
 
+def _cents(v):
+    """Kalshi now returns candlestick prices as *_dollars strings ('0.0100'). The
+    R converter expects cents, so scale dollars -> cents (0-100)."""
+    if v is None or v == "":
+        return None
+    try:
+        return round(float(v) * 100, 4)
+    except (TypeError, ValueError):
+        return None
+
+
 def ohlc(candle, side):
+    """OHLC for one side, handling Kalshi's current schema (open_dollars/…) with a
+    fallback to the legacy integer-cent keys (open/…) if the API reverts."""
     d = candle.get(side) or {}
+    if any(k in d for k in ("open_dollars", "close_dollars", "high_dollars", "low_dollars")):
+        return (_cents(d.get("open_dollars")), _cents(d.get("high_dollars")),
+                _cents(d.get("low_dollars")), _cents(d.get("close_dollars")))
     return d.get("open"), d.get("high"), d.get("low"), d.get("close")
+
+
+def _fp(v):
+    if v is None or v == "":
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
 
 
 def main():
@@ -149,8 +177,8 @@ def main():
                     "yes_bid_open": bo, "yes_bid_high": bh, "yes_bid_low": bl, "yes_bid_close": bc,
                     "yes_ask_open": ao, "yes_ask_high": ah, "yes_ask_low": al, "yes_ask_close": ac,
                     "price_open": po, "price_high": ph, "price_low": pl, "price_close": pc,
-                    "volume": c.get("volume"),
-                    "open_interest": c.get("open_interest"),
+                    "volume": _fp(c.get("volume_fp", c.get("volume"))),
+                    "open_interest": _fp(c.get("open_interest_fp", c.get("open_interest"))),
                 })
             time.sleep(CALL_SLEEP)
         out = os.path.join(ORDERBOOK_DIR, "orderbook_{}.csv".format(key))

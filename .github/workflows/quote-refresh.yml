@@ -28,7 +28,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install Python dependencies
-        run: pip install pandas python-dotenv cryptography requests psycopg2-binary
+        run: pip install pandas python-dotenv cryptography requests websockets psycopg2-binary
 
       - name: Create data directories
         run: |

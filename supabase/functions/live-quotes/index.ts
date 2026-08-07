@@ -52,13 +52,32 @@ function parseStrike(t: string): number | null {
 }
 
 // ---- Kalshi RSA-PSS request signing (mirrors clients_kalshi.py) ----
+// DER length octets (short form < 128, else long form).
+function derLen(n: number): number[] {
+  if (n < 0x80) return [n];
+  const b: number[] = [];
+  let x = n;
+  while (x > 0) { b.unshift(x & 0xff); x >>= 8; }
+  return [0x80 | b.length, ...b];
+}
+// Wrap a PKCS#1 RSAPrivateKey (from "BEGIN RSA PRIVATE KEY") into a PKCS#8
+// PrivateKeyInfo, which is the only form Web Crypto's importKey accepts.
+function pkcs1ToPkcs8(pkcs1: Uint8Array): Uint8Array {
+  const algId = [0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, 0x05, 0x00];
+  const version = [0x02, 0x01, 0x00];
+  const octet = [0x04, ...derLen(pkcs1.length), ...pkcs1];
+  const content = [...version, ...algId, ...octet];
+  return Uint8Array.from([0x30, ...derLen(content.length), ...content]);
+}
 let KEY: CryptoKey | null = null;
 async function privateKey(): Promise<CryptoKey> {
   if (KEY) return KEY;
   const pem = Deno.env.get("KALSHI_PRIVATE_KEY") ?? "";
+  const isPkcs1 = /BEGIN RSA PRIVATE KEY/.test(pem);
   const b64 = pem.replace(/-----BEGIN[^-]+-----/, "").replace(/-----END[^-]+-----/, "").replace(/\s+/g, "");
   if (!b64) throw new Error("KALSHI_PRIVATE_KEY not set");
-  const der = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  let der = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  if (isPkcs1) der = pkcs1ToPkcs8(der);   // convert PKCS#1 -> PKCS#8 for Web Crypto
   KEY = await crypto.subtle.importKey("pkcs8", der, { name: "RSA-PSS", hash: "SHA-256" }, false, ["sign"]);
   return KEY;
 }

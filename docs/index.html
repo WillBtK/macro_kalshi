@@ -238,7 +238,7 @@
     <p id="cap-ts" class="cap"></p>
     <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
       <h2 class="sec" style="margin-right:auto">Probability distribution</h2>
-      <button id="liveBtn" class="dlbtn" title="Overlay the latest bid/ask-midpoint distribution (snapshot refreshed hourly)">⚡ Live now</button>
+      <button id="liveBtn" class="dlbtn" title="Overlay the latest quote-based (bid/ask-midpoint) distribution for this contract">⚡ Quotes overlay</button>
       <button id="liveClear" class="dlbtn hidden" style="background:var(--bg);color:var(--ink)">Clear live</button>
     </div>
     <div id="hist" class="hist"></div>
@@ -618,8 +618,8 @@
         hovertemplate:`live %{x}${meta.unit||""}<br>%{y:.1f}%<extra></extra>`});
       if(lv.mean!=null){shapes.push({type:"line",x0:lv.mean,x1:lv.mean,yref:"paper",y0:0,y1:1,line:{color:cssv("--s2"),width:1.3,dash:"dot"}});
         anns.push({x:lv.mean,y:1,yref:"paper",yanchor:"bottom",text:`live ${fmt(lv.mean)}`,showarrow:false,font:{size:11,color:cssv("--s2")}});}
-      const t=new Date(lv.asof),stamp=isNaN(t)?"":` as of ${t.toLocaleString([], {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}`;
-      $("cap-hist").textContent+=` Orange line = latest bid/ask-midpoint distribution${stamp} (${lv.n_strikes} strikes).`;
+      const stamp=lv.asof?` as of ${fmtD(String(lv.asof).slice(0,10))}`:"";
+      $("cap-hist").textContent+=` Orange line = latest quote-based (bid/ask-midpoint) distribution${stamp} (${lv.n_strikes} strikes).`;
     }
     Plotly.react("hist",traces,
       baseLayout({shapes,annotations:anns,showlegend:false,margin:{t:22,r:14,b:40,l:44},
@@ -1303,27 +1303,30 @@
     $("sourceSel").addEventListener("click",e=>{const b=e.target.closest("button");if(!b||state.source===b.dataset.s)return;
       [...$("sourceSel").children].forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");
       state.source=b.dataset.s;state.data={};state.dist={};loadSeriesSafe();});
-    // "Live now": overlay the latest bid/ask-midpoint distribution for the on-screen
-    // series+contract. A scheduled GitHub Action refreshes this snapshot into
-    // Supabase (Kalshi blocks direct browser calls), so the button just reads those
-    // tables via PostgREST — same instant across all strikes, stamped with its asof.
+    // "Live now": overlay the latest QUOTE-based (bid/ask-midpoint) distribution for
+    // the on-screen series+contract, read straight from the quote tables the daily
+    // pipeline computes. This is the current cross-strike price structure (not just
+    // what traded), stamped with the date of the most recent quote snapshot.
     async function pullLive(){
       const btn=$("liveBtn"),meta=CFG.SERIES_META[state.series]||{};
       if(!state.data[state.series]||!state.contract){alert("Pick a series and contract first.");return;}
       const orig=btn.textContent;btn.disabled=true;btn.textContent="Fetching…";
       try{
         const q=`series=eq.${encodeURIComponent(state.series)}&contract_preamble=eq.${encodeURIComponent(state.contract)}`;
-        const [dist,mom]=await Promise.all([
-          pgFetch("live_snapshot_dist",`select=asof,strike,probability&${q}&order=strike`),
-          pgFetch("live_snapshot_moments",`select=asof,mean,median,mode,sd,n_strikes&${q}`)]);
-        if(!dist.length){alert("No live snapshot for this contract yet.\n\nThe hourly snapshot may not have run, or this contract isn't currently open on Kalshi. Try again shortly, or pick an open contract.");return;}
-        const m0=mom[0]||{};
+        // most recent quote date for this contract
+        const latest=await pgFetch("daily_moments_quotes",`select=date,mean,median,mode,variance&${q}&order=date.desc&limit=1`);
+        if(!latest.length){alert("No quote-based distribution for this contract yet.\n\nQuote data currently covers Fed Funds, CPI (YoY / core / MoM), unemployment and quarterly GDP. It's refreshed by the daily pipeline — check back after the next run.");return;}
+        const d0=latest[0].date;
+        const dist=await pgFetch("daily_distributions_quotes",`select=strike,probability&${q}&date=eq.${d0}&order=strike`);
+        if(!dist.length){alert("No quote distribution rows for the latest date yet — check back after the next daily run.");return;}
+        const m0=latest[0];
         state.live={series:state.series,contract:state.contract,unit:meta.unit||"",
-          asof:m0.asof||dist[0].asof,n_strikes:m0.n_strikes!=null?m0.n_strikes:dist.length,
+          asof:d0,n_strikes:dist.length,
           strikes:dist.map(r=>+r.strike),probs:dist.map(r=>+r.probability),
-          mean:m0.mean,median:m0.median,mode:m0.mode,sd:m0.sd};
+          mean:m0.mean,median:m0.median,mode:m0.mode,
+          sd:(m0.variance!=null&&m0.variance>=0)?Math.sqrt(m0.variance):null};
         $("liveClear").classList.remove("hidden");renderHist();
-      }catch(e){alert("Live pull failed: "+e);}
+      }catch(e){alert("Quote pull failed: "+e);}
       finally{btn.disabled=false;btn.textContent=orig;}
     }
     $("liveBtn").addEventListener("click",pullLive);

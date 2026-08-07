@@ -161,6 +161,10 @@
       <label class="h">View</label>
       <div class="seg" id="esView"><button data-w="moves" aria-pressed="true">Event-day moves</button><button data-w="into" aria-pressed="false">Into the release</button></div>
     </div>
+    <div class="ctl es-only hidden">
+      <label class="h" for="esEvent">Event dates from</label>
+      <select id="esEvent"><option value="">This series (own release)</option></select>
+    </div>
     <div class="ctl notdata">
       <label class="h" for="minVol">Min contracts/day</label>
       <input id="minVol" class="numin" type="number" min="0" step="1" value="0">
@@ -352,7 +356,7 @@
   const REALIZED_FREQ={fed_levels:"day",gdp_end_of_year:"year",gdp_quarterly:"quarter"}; // others: month
 
   const state={tab:"fwd",series:null,source:"trade",momentFwd:"mean",cadence:"1",momentTerm:"mean",contract:null,di:0,
-    riskMeasure:"sd",riskView:"horizon",riskNout:[4],esMeasure:"mean",esView:"moves",
+    riskMeasure:"sd",riskView:"horizon",riskNout:[4],esMeasure:"mean",esView:"moves",esEvent:"",
     minVol:0,lowVol:"carry",compareView:"chart",compareSepAxes:false,builderCols:[],tsShowExpired:false,dataShowExpired:false,
     show:{mean:true,median:true,mode:true,band:true,vol:true},termSnaps:["latest","m1","m3"],
     dataSeries:{},cols:{mean:true,median:true,mode:true,sd:true,vol:true},data:{},dist:{},live:null,
@@ -765,11 +769,17 @@
   }
 
   // ================= EVENT STUDY (reaction of the distribution to releases/meetings)
-  // Event dates are the contracts' own resolution dates (d.eventDates) — i.e. the
-  // FOMC meeting / data release each series settles on. No external shock series
-  // needed: the reaction is read straight off how the market's own distribution
-  // moves around each event. First-release outcomes (d.firstRel) supply the
-  // realized value for the forecast-error view.
+  // The STUDIED series (state.series) is read against a set of EVENT dates. By
+  // default those are the studied series' own resolution dates (its FOMC meeting /
+  // data release), but the "Event dates from" control lets you study one series'
+  // pricing around ANOTHER series' releases — e.g. Fed Funds around CPI or jobs-
+  // report days. First-release outcomes (d.firstRel) supply the realized value for
+  // the own-series forecast-error view.
+  //
+  // Window: US macro data is released in the morning and we snapshot at each
+  // business-day CLOSE, so the release-day close already embeds the reaction. Every
+  // reaction below therefore compares the EVENT-DAY close to the PRIOR business-day
+  // close (not day-after minus day-of).
   function contractRealized(d,c){
     const o=d.byContract[c]; if(!o)return null;
     const ref=o.expiry?parseD(o.expiry):contractDate(c); if(ref==null)return null;
@@ -781,11 +791,23 @@
   function renderEventStudy(){
     const d=state.data[state.series],meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"};
     const m=state.esMeasure,u=meta.unit||"",mv=state.minVol,grid=cssv("--grid");
-    const evName=EVENT_NAME[state.series]||"release";
+    // event source: own series (default) or another series' release calendar
+    const evSrc=state.esEvent||state.series, own=(evSrc===state.series);
+    const ed=state.data[evSrc];
+    if(!ed){ // event-source series not loaded yet — fetch, then re-render
+      $("cap-es").textContent="Loading event dates…";
+      Plotly.react("chart-es",[],baseLayout({annotations:[{text:"Loading event dates…",showarrow:false,font:{color:cssv("--muted")}}],xaxis:{visible:false},yaxis:{visible:false}}),CFG_PLOT);
+      fetchSeries(evSrc).catch(()=>{}).finally(()=>{if(state.tab==="es")renderEventStudy();});
+      return;
+    }
+    const evName=EVENT_NAME[evSrc]||"release";
+    const around=own?"":` around ${(CFG.SERIES_META[evSrc]||{}).label||evSrc} ${evName}s`;
     const mLab=m==="sd"?"implied s.d.":m==="skew"?"skewness":"mean";
+    const events=(ed.eventDates||[]).filter(E=>E>=d.momMin-5*DAY&&E<=d.momMax+5*DAY);
     const traces=[],anns=[],shapes=[];
-    if(state.esView==="into"){
-      // event-time average: align every contract to its own resolution (τ = 0)
+    if(state.esView==="into"&&own){
+      // OWN-series event-time average: align every contract to its own resolution
+      // (τ = 0). For the mean this is the forecast-error convergence exhibit.
       const HZ=90,sum=new Map(),cnt=new Map();
       for(const c in d.byContract){const o=d.byContract[c];if(!o.expiry)continue;const R=parseD(o.expiry);
         const realized=m==="mean"?contractRealized(d,c):null;
@@ -813,27 +835,67 @@
       $("cap-es").innerHTML=`${meta.label} — ${what}, with every contract aligned to its own ${evName} (τ = 0), averaged across all resolved contracts. `+
         ((m==="mean"||m==="sd")?`It falls toward zero as the ${evName} nears — the market resolving uncertainty into the event.`:``)+
         (mv>0?` Days under ${mv} contracts excluded.`:``);
-    } else {
-      // event-day moves: per-event jump of the nearest SURVIVING contract (same
-      // contract observed just before and just after the event — no roll artifact)
-      const events=(d.eventDates||[]).filter(E=>E>=d.momMin-5*DAY&&E<=d.momMax+5*DAY);
-      const xs=[],ys=[],colors=[],text=[],WIN=12*DAY;let absSum=0,absN=0;
+    } else if(state.esView==="into"){
+      // CROSS-series event-time average: align THIS series' front contract to each
+      // chosen event date (τ = 0), average the measure across events. The mean is
+      // indexed to its event-day close so contracts at different levels are
+      // comparable — showing the average path of pricing through the release.
+      const HZ=20,POST=8,sum=new Map(),cnt=new Map();
       for(const E of events){
         let pick=null,pd=Infinity;
         for(const c in d.byContract){const o=d.byContract[c];const ref=o.expiry?parseD(o.expiry):contractDate(c);
           if(ref==null||ref<=E+2*DAY)continue;const dd=ref-E;if(dd<pd){pd=dd;pick=c;}}
         if(!pick)continue;
-        const o=d.byContract[pick];let ib=-1,ia=-1;
-        for(let i=0;i<o.t.length;i++){const ok=mv<=0||(o.vol[i]!=null&&o.vol[i]>=mv);if(!ok)continue;
-          if(o.t[i]<=E){if(ib<0||o.t[i]>o.t[ib])ib=i;}else if(ia<0){ia=i;}}
-        if(ib<0||ia<0)continue;
-        if(Math.abs(o.t[ib]-E)>WIN||Math.abs(o.t[ia]-E)>WIN)continue;
+        const o=d.byContract[pick];
+        let e0=null;for(let i=0;i<o.t.length;i++){if(mv>0&&!(o.vol[i]!=null&&o.vol[i]>=mv))continue;if(o.t[i]<=E){const v=esVal(o,i,m);if(v!=null)e0=v;}}
+        if(m==="mean"&&e0==null)continue;
+        for(let i=0;i<o.t.length;i++){
+          if(mv>0&&!(o.vol[i]!=null&&o.vol[i]>=mv))continue;
+          const tau=Math.round((o.t[i]-E)/DAY);if(tau<-HZ||tau>POST)continue;
+          let v=esVal(o,i,m);if(v==null)continue;
+          if(m==="mean")v=v-e0;
+          sum.set(tau,(sum.get(tau)||0)+v);cnt.set(tau,(cnt.get(tau)||0)+1);}}
+      const taus=[...sum.keys()].filter(t=>cnt.get(t)>=2).sort((a,b)=>a-b);
+      if(!taus.length){Plotly.react("chart-es",[],baseLayout({annotations:[{text:`Not enough overlap between ${meta.label} pricing and ${evName} dates yet.`,showarrow:false,font:{color:cssv("--muted")}}],xaxis:{visible:false},yaxis:{visible:false}}),CFG_PLOT);
+        $("cap-es").textContent=`${meta.label}${around}. Not enough overlapping data yet.`;return;}
+      const xs=taus,ys=taus.map(t=>sum.get(t)/cnt.get(t));
+      traces.push({type:"scatter",mode:"lines",x:xs,y:ys,line:{color:cssv("--s1"),width:2.4},
+        hovertemplate:`%{x} d to ${evName}<br>${m==="mean"?"Δ mean vs event day":mLab}: %{y:+.2f}${m==="skew"?"":u}<extra></extra>`});
+      shapes.push({type:"line",x0:0,x1:0,yref:"paper",y0:0,y1:1,line:{color:cssv("--ink"),width:1,dash:"dot"}});
+      if(m==="mean")shapes.push({type:"line",xref:"paper",x0:0,x1:1,y0:0,y1:0,line:{color:cssv("--muted"),width:1}});
+      anns.push({x:0,y:1,yref:"paper",yanchor:"bottom",xanchor:"right",xshift:-4,text:`${evName}`,showarrow:false,font:{size:11,color:cssv("--ink")}});
+      const yTitle=m==="mean"?`Avg change in mean vs event-day close${u?" ("+u+")":""}`:m==="sd"?`Avg implied s.d.${u?" ("+u+")":""}`:"Avg skewness";
+      Plotly.react("chart-es",traces,baseLayout({annotations:anns,shapes,margin:{t:10,r:20,b:34,l:58},
+        xaxis:{gridcolor:grid,showgrid:false,zeroline:false,showline:false,ticks:"outside",ticklen:4,tickcolor:grid,title:{text:`Trading days relative to ${evName} (0 = event)`,font:{size:11}},automargin:true},
+        yaxis:{title:{text:yTitle,font:{size:11.5}},gridcolor:grid,zeroline:false,showline:false,rangemode:m==="sd"?"tozero":"normal"}}),CFG_PLOT);
+      $("cap-es").innerHTML=`${meta.label}${around} — its ${m==="mean"?"mean (indexed to each event-day close)":mLab}, with the front contract aligned to each ${evName} (τ = 0) and averaged across events. `+
+        (mv>0?` Days under ${mv} contracts excluded.`:``);
+    } else {
+      // EVENT-DAY MOVES: per-event jump of the studied series' nearest front
+      // contract (own resolution safely past the event, so it isn't collapsing to a
+      // point). The move is the EVENT-DAY close minus the PRIOR business-day close —
+      // the same contract observed one day apart, so no roll artifact.
+      const xs=[],ys=[],colors=[],text=[],WIN=8*DAY;let absSum=0,absN=0;
+      for(const E of events){
+        let pick=null,pd=Infinity;
+        for(const c in d.byContract){const o=d.byContract[c];const ref=o.expiry?parseD(o.expiry):contractDate(c);
+          if(ref==null||ref<=E+2*DAY)continue;const dd=ref-E;if(dd<pd){pd=dd;pick=c;}}
+        if(!pick)continue;
+        const o=d.byContract[pick];
+        // valid (minVol-filtered, non-null) observation indices in time order
+        const valid=[];for(let i=0;i<o.t.length;i++){if(mv>0&&!(o.vol[i]!=null&&o.vol[i]>=mv))continue;if(esVal(o,i,m)==null)continue;valid.push(i);}
+        // event-day obs = last valid obs on/before E (its close embeds the release);
+        // prior obs = the one immediately before it
+        let ep=-1;for(let j=0;j<valid.length;j++){if(o.t[valid[j]]<=E)ep=j;else break;}
+        if(ep<1)continue;
+        const ia=valid[ep],ib=valid[ep-1];
+        if(Math.abs(o.t[ia]-E)>WIN)continue;
         const vb=esVal(o,ib,m),va=esVal(o,ia,m);if(vb==null||va==null)continue;
         const dv=va-vb;
         xs.push(E);ys.push(dv);colors.push(dv>=0?cssv("--s1"):cssv("--s2"));text.push(pretty(pick));
         absSum+=Math.abs(dv);absN++;}
-      if(!xs.length){Plotly.react("chart-es",[],baseLayout({annotations:[{text:`No paired before/after observations around ${evName} dates yet.`,showarrow:false,font:{color:cssv("--muted")}}],xaxis:{visible:false},yaxis:{visible:false}}),CFG_PLOT);
-        $("cap-es").textContent=`${meta.label}. No ${evName} reactions found in range.`;return;}
+      if(!xs.length){Plotly.react("chart-es",[],baseLayout({annotations:[{text:`No paired prior/event-day observations around ${evName} dates yet.`,showarrow:false,font:{color:cssv("--muted")}}],xaxis:{visible:false},yaxis:{visible:false}}),CFG_PLOT);
+        $("cap-es").textContent=`${meta.label}${around}. No reactions found in range.`;return;}
       traces.push({type:"bar",x:xs,y:ys,marker:{color:colors},width:8*DAY,customdata:text,
         hovertemplate:`%{x|%b %e, %Y} · ${evName}<br>%{customdata}<br>Δ ${mLab}: %{y:+.2f}${m==="skew"?"":u}<extra></extra>`});
       shapes.push({type:"line",xref:"paper",x0:0,x1:1,y0:0,y1:0,line:{color:cssv("--muted"),width:1}});
@@ -844,7 +906,7 @@
         xaxis:{type:"date",gridcolor:grid,showgrid:false,zeroline:false,showline:false,ticks:"outside",ticklen:4,tickcolor:grid},
         yaxis:{title:{text:yTitle,font:{size:11.5}},gridcolor:grid,zeroline:false,showline:false}}),CFG_PLOT);
       const avg=absN?absSum/absN:0;
-      $("cap-es").innerHTML=`${meta.label} — each bar is the change in the nearest surviving contract's ${mLab} from the last trading day before a ${evName} to the first after: the market's reaction to that release/meeting. `+
+      $("cap-es").innerHTML=`${meta.label}${around} — each bar is the change in the nearest front contract's ${mLab} from the prior business-day close to the ${evName}-day close (the close already captures the US-morning release). `+
         `Average absolute move: <b>${fmt(avg,2)}${m==="skew"?"":u}</b> across ${absN} ${evName}${absN===1?"":"s"}. `+
         `<span style="color:var(--s1)">■</span> up, <span style="color:var(--s2)">■</span> down.`+(mv>0?` Days under ${mv} contracts excluded.`:``);
     }
@@ -1268,6 +1330,14 @@
       [...$(id).children].forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");
       state[key]=b.dataset[attr];if(state.data[state.series])renderEventStudy();});}
     esSeg("esMeasure","esMeasure","r");esSeg("esView","esView","w");
+    // "Event dates from": study the current series' pricing around another series'
+    // release calendar (or its own, the default). Loads the chosen series' data (for
+    // its resolution dates) then re-renders.
+    for(const k in CFG.SERIES_META){const o=document.createElement("option");o.value=k;o.textContent=CFG.SERIES_META[k].label;$("esEvent").appendChild(o);}
+    $("esEvent").addEventListener("change",async e=>{
+      state.esEvent=e.target.value;
+      if(state.esEvent&&!state.data[state.esEvent]){try{await fetchSeries(state.esEvent);}catch(err){console.error(err);}}
+      if(state.data[state.series])renderEventStudy();});
     $("riskNout").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;
       const N=+b.dataset.n,i=state.riskNout.indexOf(N);
       if(i>=0){if(state.riskNout.length>1)state.riskNout.splice(i,1);}   // keep at least one

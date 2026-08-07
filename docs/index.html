@@ -181,7 +181,7 @@
     </div>
     <div class="ctl ts-only hidden">
       <label class="h">Low-volume days</label>
-      <div class="seg" id="lowVol"><button data-v="carry" aria-pressed="true">Carry forward</button><button data-v="raw" aria-pressed="false">Keep raw</button></div>
+      <div class="seg" id="lowVol"><button data-v="carry" aria-pressed="true">Carry forward</button><button data-v="raw" aria-pressed="false">Keep raw</button><button data-v="quote" aria-pressed="false">Use quotes</button></div>
     </div>
     <div class="ctl term-only hidden">
       <label class="h">Central tendency</label>
@@ -492,15 +492,25 @@
     const d=state.data[state.series],meta=CFG.SERIES_META[state.series]||{label:state.series,axis:"Value"};
     const o=d.byContract[state.contract];if(!o)return;
     const x=o.t,traces=[],anns=[],grid=cssv("--grid");
-    const mv=state.minVol, carry=state.lowVol==="carry";
+    const mv=state.minVol, lowMode=state.lowVol; // "carry" | "raw" | "quote"
     const q=o.t.map((_,i)=> mv<=0 ? true : (o.vol[i]!=null && o.vol[i]>=mv));
-    // display = carried-forward (or raw) values; solid = only on days meeting the volume floor
+    const qmap=(d.quoteByContract&&d.quoteByContract[state.contract])||null;
+    // display = the low-volume-day fill (carried forward / raw as-traded / quote-
+    // substituted); solid = only on days meeting the volume floor. Low-vol days
+    // render dashed. "quote" falls back to raw when no quote value exists that day.
     function disp(key){
       if(mv<=0)return{display:o[key],solid:o[key]};
       const display=[],solid=[];let last=null;
       for(let i=0;i<x.length;i++){
         if(q[i]){last=o[key][i];display.push(o[key][i]);solid.push(o[key][i]);}
-        else{display.push(carry?last:o[key][i]);solid.push(null);}}
+        else{
+          let v;
+          if(lowMode==="carry")v=last;
+          else if(lowMode==="quote"){const qd=qmap&&qmap[o.ds[i]];v=(qd&&qd[key]!=null)?qd[key]:o[key][i];}
+          else v=o[key][i]; // "raw"
+          display.push(v);solid.push(null);
+        }
+      }
       return{display,solid};
     }
     const anyLow = mv>0 && q.some(v=>!v);
@@ -547,7 +557,7 @@
     if(!div._hoverBound){div._hoverBound=true;div.on("plotly_hover",e=>{const p=e.points&&e.points.find(pp=>pp.pointIndex!=null);if(p)setDay(p.pointIndex,true);});}
     $("cap-ts").textContent=`${meta.label} — ${pretty(state.contract)}. Mean/median/mode over the contract's trading life; shaded band is ±1 s.d.`+
       (settle!=null?` Dotted horizontal line = where it actually settled (value as first reported, before revisions).`:``)+
-      (anyLow?` Dashed = days under ${mv} contracts (${carry?"held at last liquid value":"shown as traded"}); their volume bars are marked orange.`:``);
+      (anyLow?` Dashed = days under ${mv} contracts (${lowMode==="carry"?"held at last liquid value":lowMode==="quote"?"filled from the bid/ask quote midpoint":"shown as traded"}); their volume bars are marked orange.`:``);
   }
   function realizedDate(ds,series){const f=REALIZED_FREQ[series]||"month";
     if(f==="day")return fmtD(ds); if(f==="year")return ds.slice(0,4);
@@ -1080,9 +1090,19 @@
     let frRows=[];
     try{ frRows=await pgFetch("underlying_first_release",`select=date,value,released&series=eq.${k}&order=released`); }
     catch(e){ console.warn("first_release unavailable:",e.message); }
+    // quote-based (bid/ask) moments for the low-volume "Use quotes" fallback; optional
+    let qmRows=[];
+    try{ qmRows=await pgFetch("daily_moments_quotes",`select=contract_preamble,date,mean,median,mode,variance&series=eq.${k}`); }
+    catch(e){ console.warn("quote moments unavailable:",e.message); }
     const d=prep(moments,realized,expiryRows);
     d.firstRel=frRows.map(r=>({rel:r.released?parseD(r.released):null,t:parseD(r.date),v:r.value}))
                      .filter(r=>r.v!=null).sort((a,b)=>((a.rel||a.t)-(b.rel||b.t)));
+    // per-contract date -> quote moment lookup (mean/median/mode/sd) for "Use quotes"
+    const qbc={};
+    for(const r of qmRows){(qbc[r.contract_preamble]||(qbc[r.contract_preamble]={}))[r.date]={
+      mean:r.mean,median:r.median,mode:r.mode,
+      sd:(r.variance!=null&&r.variance>=0)?Math.sqrt(r.variance):null};}
+    d.quoteByContract=qbc;
     state.data[k]=d;return d;
   }
   async function ensureDist(k,c){state.dist[k]=state.dist[k]||{};if(state.dist[k][c])return;

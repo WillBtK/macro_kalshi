@@ -480,6 +480,11 @@ get_moments <- function(df, moment_adjustment) {
   df <- df %>%
     group_by(date, contract_preamble, expiry_date) %>%
     summarise(
+      # breadth = how many strikes actually traded that day (vs carried-forward);
+      # a confidence signal for the distribution's shape. Computed BEFORE the
+      # daily_volume reassignment so it still sees per-strike volumes.
+      breadth = sum(daily_volume > 0, na.rm = TRUE),
+      med_spread = NA_real_,   # not defined for the trade path (kept for a uniform schema)
       daily_volume = sum(daily_volume),
       mean     = sum(probability * strike, na.rm = TRUE) / sum(probability, na.rm = TRUE) + moment_adjustment,
       median   = weightedMedian(strike, w = probability, na.rm = TRUE, interpolate = FALSE) + moment_adjustment,

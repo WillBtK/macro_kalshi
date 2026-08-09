@@ -378,14 +378,15 @@
   function prep(moments,realized,expiryRows){
     const byContract={};let momMin=Infinity,momMax=-Infinity;
     for(const r of moments){const c=r.contract_preamble;
-      if(!byContract[c])byContract[c]={t:[],ds:[],mean:[],median:[],mode:[],sd:[],skew:[],vol:[],expiry:r.expiry_date||null};
+      if(!byContract[c])byContract[c]={t:[],ds:[],mean:[],median:[],mode:[],sd:[],skew:[],vol:[],breadth:[],spread:[],expiry:r.expiry_date||null};
       const o=byContract[c],t=parseD(r.date);
       o.t.push(t);o.ds.push(r.date);o.mean.push(r.mean);o.median.push(r.median);o.mode.push(r.mode);
       o.sd.push(r.variance!=null&&r.variance>=0?Math.sqrt(r.variance):null);o.skew.push(r.skewness);o.vol.push(r.daily_volume);
+      o.breadth.push(r.breadth);o.spread.push(r.med_spread);
       if(!o.expiry&&r.expiry_date)o.expiry=r.expiry_date;
       if(t<momMin)momMin=t;if(t>momMax)momMax=t;}
     for(const c in byContract){const o=byContract[c],idx=o.t.map((_,i)=>i).sort((a,b)=>o.t[a]-o.t[b]);
-      for(const k of ["t","ds","mean","median","mode","sd","skew","vol"])o[k]=idx.map(i=>o[k][i]);}
+      for(const k of ["t","ds","mean","median","mode","sd","skew","vol","breadth","spread"])o[k]=idx.map(i=>o[k][i]);}
     // override the inferred expiry with the true contract close where available
     const emap={}; for(const r of (expiryRows||[])){ if(r.expiry) emap[r.contract_preamble]=String(r.expiry).slice(0,10); }
     for(const c in byContract){ if(emap[c]) byContract[c].expiry=emap[c]; }
@@ -402,26 +403,35 @@
       if(minVol>0 && !(o.vol[i]!=null && o.vol[i]>=minVol))continue;
       const dd=Math.abs(o.t[i]-T);if(dd<bd){bd=dd;bi=i;}}
     return (bi<0||bd>45*DAY)?null:o[moment][bi];}
-  // volume of the observation valueAsOf() would pick (for low-confidence flagging)
-  function volAsOf(o,T,minVol){let bi=-1,bd=Infinity;
+  // confidence metrics of the observation valueAsOf() would pick, for flagging:
+  // breadth (strikes traded/quoted that day), med bid/ask spread, and volume.
+  function metaAsOf(o,T,minVol){let bi=-1,bd=Infinity;
     for(let i=0;i<o.t.length;i++){
       if(minVol>0 && !(o.vol[i]!=null && o.vol[i]>=minVol))continue;
       const dd=Math.abs(o.t[i]-T);if(dd<bd){bd=dd;bi=i;}}
-    return (bi<0||bd>45*DAY)?null:o.vol[bi];}
-  // A day is "low confidence" if its price was carried forward (volume 0/none) or
-  // its volume is well below the contract's typical level — exactly where s.d. and
-  // skew get noisy. Returns a boolean mask aligned to `vols`.
-  function lowConfMask(vols){
-    const pos=vols.filter(v=>v!=null&&v>0).sort((a,b)=>a-b);
-    const med=pos.length?pos[Math.floor(pos.length/2)]:0;
-    const thr=Math.max(1,med*0.25);
-    return vols.map(v=>v==null||v===0||v<thr);
+    if(bi<0||bd>45*DAY)return {vol:null,breadth:null,spread:null};
+    return {vol:o.vol[bi],breadth:o.breadth?o.breadth[bi]:null,spread:o.spread?o.spread[bi]:null};}
+  // A day is "low confidence" when the distribution rests on few strikes (breadth
+  // well below the contract's norm, or carried forward), or — for the quote source —
+  // when the typical bid/ask spread is wide. Falls back to volume for older rows
+  // that predate the breadth/spread columns. `items`: [{breadth,spread,vol}].
+  function confMask(items){
+    const bs=items.map(x=>x.breadth).filter(v=>v!=null&&v>0).sort((a,b)=>a-b);
+    const medB=bs.length?bs[Math.floor(bs.length/2)]:0;
+    const bThr=Math.max(3,medB*0.4);
+    return items.map(x=>{
+      if(x.breadth!=null){ if(x.breadth<bThr)return true; }
+      else if(x.vol==null||x.vol===0)return true;   // fallback: carried-forward / no volume
+      if(x.spread!=null&&x.spread>8)return true;     // wide quote spread (cents)
+      return false;
+    });
   }
+  const confLabel=(b,s)=>{const p=[b!=null?`${b} strike${b===1?"":"s"}`:"carried forward"];if(s!=null)p.push(`${fmt(s,1)}¢ spread`);return p.join(", ");};
   // hollow-ring overlay marking low-confidence points on a line
-  function lowConfTrace(xs,ys,color,uUnit){
-    return {type:"scatter",mode:"markers",x:xs,y:ys,
+  function confTrace(xs,ys,color,uUnit,labels){
+    return {type:"scatter",mode:"markers",x:xs,y:ys,customdata:labels,
       marker:{size:8,color:"rgba(0,0,0,0)",line:{color,width:1.4}},
-      hovertemplate:`thin volume — low confidence<br>%{y:.2f}${uUnit||""}<extra></extra>`,showlegend:false};
+      hovertemplate:`low confidence — %{customdata}<br>%{y:.2f}${uUnit||""}<extra></extra>`,showlegend:false};
   }
   function contractsSorted(d){return Object.keys(d.byContract).sort((a,b)=>cmeta(b).key-cmeta(a).key||(d.byContract[b].expiry||"").localeCompare(d.byContract[a].expiry||""));}
   function defaultContract(d){const l=contractsSorted(d);
@@ -456,7 +466,7 @@
     const contracts=Object.keys(d.byContract).map(c=>({c,x:contractDate(c)})).filter(o=>o.x!=null);
     const curves=[];
     for(const T of snaps){const pts=[];
-      for(const{c,x}of contracts){const oo=d.byContract[c],v=valueAsOf(oo,T,moment,minVol);if(v!=null)pts.push({x,v,vol:volAsOf(oo,T,minVol)});}
+      for(const{c,x}of contracts){const oo=d.byContract[c],v=valueAsOf(oo,T,moment,minVol);if(v!=null){const m=metaAsOf(oo,T,minVol);pts.push({x,v,vol:m.vol,breadth:m.breadth,spread:m.spread});}}
       pts.sort((a,b)=>a.x-b.x);if(pts.length>=2)curves.push({T,pts});}
     return curves;
   }
@@ -731,10 +741,10 @@
           line:{color,width:isLatest?2.4:1},marker:{size:isLatest?4:1,color},
           hovertemplate:`as of ${isoDay(cur.T)}<br>%{x|%b %Y}: %{y:.2f}${uUnit}<extra></extra>`});});
       if(curves.length){const lp=curves[0].pts[curves[0].pts.length-1];anns.push(endLabel(lp.x,lp.v,"current",cssv("--s2")));
-        // flag thin-volume points on the current (orange) curve
-        const cur=curves[0],mask=lowConfMask(cur.pts.map(p=>p.vol)),lx=[],ly=[];
-        cur.pts.forEach((p,i)=>{if(mask[i]){lx.push(p.x);ly.push(p.v);}});
-        if(lx.length){traces.push(lowConfTrace(lx,ly,cssv("--s2"),uUnit));anyLowConf=true;}}
+        // flag low-confidence points on the current (orange) curve
+        const cur=curves[0],mask=confMask(cur.pts),lx=[],ly=[],lab=[];
+        cur.pts.forEach((p,i)=>{if(mask[i]){lx.push(p.x);ly.push(p.v);lab.push(confLabel(p.breadth,p.spread));}});
+        if(lx.length){traces.push(confTrace(lx,ly,cssv("--s2"),uUnit,lab));anyLowConf=true;}}
       xTitle="Contract date";
       const ev=EVENT_NAME[state.series]||"release";
       cadTxt=state.cadence==="evt0"?`as of each ${ev}`:state.cadence==="evt1"?`as of the day before each ${ev}`:
@@ -745,20 +755,21 @@
       const emph=defaultContract(d);
       cons.slice().reverse().forEach((c,idx)=>{ // oldest first so newest draws on top
         const o=d.byContract[c],mv=state.minVol;
-        const xs=[],ys=[],vs=[];
+        const xs=[],ys=[],items=[];
         for(let i=0;i<o.t.length;i++){
           const ok=mv<=0||(o.vol[i]!=null&&o.vol[i]>=mv);
-          if(ok&&o[measure][i]!=null){xs.push(o.t[i]);ys.push(o[measure][i]);vs.push(o.vol[i]);}}
+          if(ok&&o[measure][i]!=null){xs.push(o.t[i]);ys.push(o[measure][i]);
+            items.push({breadth:o.breadth?o.breadth[i]:null,spread:o.spread?o.spread[i]:null,vol:o.vol[i]});}}
         if(xs.length<2)return;
         const isEmph=c===emph,exp=isExpired(c);
         const color=isEmph?cssv("--s2"):`rgba(138,147,160,${exp?0.28:0.5})`;
         traces.push({type:"scatter",mode:"lines",x:xs,y:ys,line:{color,width:isEmph?2.4:1},connectgaps:false,
           hovertemplate:`${pretty(c)}<br>%{x|%b %e, %Y}: %{y:.2f}${uUnit}<extra></extra>`});
         if(isEmph){const lp=lastPoint(xs,ys);if(lp)anns.push(endLabel(lp.x,lp.y,pretty(c),color));
-          // flag thin-volume points on the emphasised contract
-          const mask=lowConfMask(vs),lx=[],ly=[];
-          xs.forEach((x,i)=>{if(mask[i]){lx.push(x);ly.push(ys[i]);}});
-          if(lx.length){traces.push(lowConfTrace(lx,ly,color,uUnit));anyLowConf=true;}}});
+          // flag low-confidence points on the emphasised contract
+          const mask=confMask(items),lx=[],ly=[],lab=[];
+          xs.forEach((x,i)=>{if(mask[i]){lx.push(x);ly.push(ys[i]);lab.push(confLabel(items[i].breadth,items[i].spread));}});
+          if(lx.length){traces.push(confTrace(lx,ly,color,uUnit,lab));anyLowConf=true;}}});
       xTitle="Trading date";
       cadTxt="each contract over its life";
     } else {
@@ -799,7 +810,7 @@
       ?`One line per contract across its trading life; orange = nearest live contract.`
       :`<b>Constant maturity:</b> each line tracks the ${state.riskNout.map(ord).join(" / ")}-nearest contract as of every date, so the forecast horizon is held roughly fixed and moves reflect genuine shifts in uncertainty rather than the term-structure slope. Small jumps occur when a contract expires and the horizon rolls to the next. The front (1st) contract collapses toward each release; a mid horizon reads more cleanly.`;
     $("cap-risk").innerHTML=`${meta.label} — ${what} ${viewTxt}`+(state.minVol>0?` Days under ${state.minVol} contracts excluded.`:``)+
-      (anyLowConf?` <span style="color:var(--muted)">◯ Hollow markers flag thin-volume / carried-forward days, where s.d. and skew are least reliable — read them with caution (the Quotes source is steadier in the tails).</span>`:``);
+      (anyLowConf?` <span style="color:var(--muted)">◯ Hollow markers flag low-confidence points — few strikes traded/quoted (thin breadth${state.source==="quote"?" or a wide bid/ask spread":""}), where s.d. and skew are least reliable. Hover for the strike count${state.source==="quote"?" / spread":""}.</span>`:``);
   }
 
   // ================= EVENT STUDY (reaction of the distribution to releases/meetings)
@@ -1202,7 +1213,7 @@
     // (state.data / state.dist) is cleared on a source switch, so this re-fetches.
     const momTable=state.source==="quote"?"daily_moments_quotes":"daily_moments";
     const [moments,realized]=await Promise.all([
-      pgFetch(momTable,`select=contract_preamble,date,expiry_date,mean,median,mode,variance,skewness,daily_volume&series=eq.${k}`),
+      pgFetch(momTable,`select=contract_preamble,date,expiry_date,mean,median,mode,variance,skewness,daily_volume,breadth,med_spread&series=eq.${k}`),
       pgFetch("underlying_history",`select=date,value&series=eq.${k}&order=date`)]);
     // true per-contract expiry from Kalshi metadata; tolerate its absence (older DBs)
     let expiryRows=[];

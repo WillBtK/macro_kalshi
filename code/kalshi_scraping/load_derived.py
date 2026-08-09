@@ -37,7 +37,7 @@ def load_moments(path):
                 r["contract_preamble"], r["date"], r.get("expiry_date") or None,
                 num(r.get("daily_volume")), num(r.get("mean")), num(r.get("median")),
                 num(r.get("mode")), num(r.get("skewness")), num(r.get("kurtosis")),
-                num(r.get("variance")),
+                num(r.get("variance")), num(r.get("breadth")), num(r.get("med_spread")),
             ))
     return rows
 

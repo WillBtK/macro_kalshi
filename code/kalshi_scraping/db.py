@@ -46,6 +46,8 @@ CREATE TABLE IF NOT EXISTS daily_moments (
     skewness           DOUBLE PRECISION,
     kurtosis           DOUBLE PRECISION,
     variance           DOUBLE PRECISION,
+    breadth            INTEGER,
+    med_spread         DOUBLE PRECISION,
     PRIMARY KEY (series, contract_preamble, date)
 );
 
@@ -106,6 +108,8 @@ CREATE TABLE IF NOT EXISTS daily_moments_quotes (
     skewness           DOUBLE PRECISION,
     kurtosis           DOUBLE PRECISION,
     variance           DOUBLE PRECISION,
+    breadth            INTEGER,
+    med_spread         DOUBLE PRECISION,
     PRIMARY KEY (series, contract_preamble, date)
 );
 
@@ -235,9 +239,20 @@ def connect():
     return conn
 
 
+# Additive column migrations for already-created tables (CREATE TABLE IF NOT
+# EXISTS won't add new columns to an existing table). Safe to run every time.
+MIGRATE_SQL = """
+ALTER TABLE daily_moments        ADD COLUMN IF NOT EXISTS breadth INTEGER;
+ALTER TABLE daily_moments        ADD COLUMN IF NOT EXISTS med_spread DOUBLE PRECISION;
+ALTER TABLE daily_moments_quotes ADD COLUMN IF NOT EXISTS breadth INTEGER;
+ALTER TABLE daily_moments_quotes ADD COLUMN IF NOT EXISTS med_spread DOUBLE PRECISION;
+"""
+
+
 def ensure_schema(conn):
     with conn.cursor() as cur:
         cur.execute(SCHEMA_SQL)
+        cur.execute(MIGRATE_SQL)
         cur.execute(POLICY_SQL)
     conn.commit()
 
@@ -303,7 +318,7 @@ def replace_moments(conn, series, rows):
             execute_values(cur, """
                 INSERT INTO daily_moments
                   (series, contract_preamble, date, expiry_date, daily_volume,
-                   mean, median, mode, skewness, kurtosis, variance)
+                   mean, median, mode, skewness, kurtosis, variance, breadth, med_spread)
                 VALUES %s
             """, [(series,) + r for r in rows], page_size=1000)
     conn.commit()
@@ -331,7 +346,7 @@ def replace_quote_moments(conn, series, rows):
             execute_values(cur, """
                 INSERT INTO daily_moments_quotes
                   (series, contract_preamble, date, expiry_date, daily_volume,
-                   mean, median, mode, skewness, kurtosis, variance)
+                   mean, median, mode, skewness, kurtosis, variance, breadth, med_spread)
                 VALUES %s
             """, [(series,) + r for r in rows], page_size=1000)
     conn.commit()

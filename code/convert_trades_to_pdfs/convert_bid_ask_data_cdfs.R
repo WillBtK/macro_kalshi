@@ -28,7 +28,10 @@ read_bid_ask <- function(input_file, filter_large_spreads = T) {
       strike_raw = str_extract(market_ticker, "(?<=-T)[^\\-]+$"),
       strike = as.numeric(str_replace_all(strike_raw, "−", "-")),
       # Midpoint between yes_bid and yes_ask close prices
-      yes_price = (yes_bid_close + yes_ask_close) / 2
+      yes_price = (yes_bid_close + yes_ask_close) / 2,
+      # raw bid/ask spread (cents) BEFORE the large-spread carry-forward below — a
+      # per-strike quote-quality signal used to build a daily confidence metric
+      spread = abs(yes_ask_close - yes_bid_close)
     )
   
   # If the flag is turned on, remove anything with a bid-ask spread of more than 15
@@ -57,9 +60,9 @@ read_bid_ask <- function(input_file, filter_large_spreads = T) {
     
   }
   
-    df <- df %>% select(date, contract_preamble, strike, yes_price, volume, open_interest) %>%
+    df <- df %>% select(date, contract_preamble, strike, yes_price, spread, volume, open_interest) %>%
     arrange(contract_preamble, strike, date)
-  
+
   return(df)
 }
 
@@ -509,16 +512,31 @@ extract_distributions <- function(input_file, output_distributions, output_momen
   # thousands so the grid, bins, and moments line up with the trade path and the
   # FRED realised series). Mirrors convert_trade_level_data_cdfs.R.
   if (strike_scale != 1) df <- df %>% mutate(strike = strike * strike_scale)
+
+  # Daily confidence metrics from the FRESH quotes (before carry-forward fills):
+  # breadth = strikes quoted that day, med_spread = typical bid/ask spread,
+  # daily_volume = total volume. Joined onto the moments; days with no fresh
+  # quotes (carried forward) simply don't appear here -> NA -> flagged downstream.
+  conf <- df %>%
+    dplyr::group_by(contract_preamble, date) %>%
+    dplyr::summarise(
+      breadth      = sum(!is.na(yes_price)),
+      med_spread   = median(spread, na.rm = TRUE),
+      daily_volume = sum(volume, na.rm = TRUE),
+      .groups = "drop"
+    )
+
   df <- fill_dataless_days(df, days_before_horizon)
   df <- clean_data(df)
-  
+
   df <- df %>% filter(expiry_date < end_date)
-  
+
   df <- convert_to_probabilities(df, strike_int = strike_int, days_before_horizon)
   moments_df <- get_moments(df, moment_adjustment)
-  
+  moments_df <- moments_df %>% dplyr::left_join(conf, by = c("contract_preamble", "date"))
+
   write_csv(moments_df, output_moments)
-  
+
   write_csv(df, output_distributions)
 }
 

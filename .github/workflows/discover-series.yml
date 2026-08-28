@@ -1,0 +1,25 @@
+name: Discover series
+
+# Look up Kalshi's exact series ticker(s) for a keyword before adding a new
+# series to the pipeline. Public (unauthenticated) endpoint only.
+on:
+  workflow_dispatch:
+    inputs:
+      keywords:
+        description: "Space-separated keywords (e.g. 'pce core pce')"
+        required: true
+        default: "pce"
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install requests
+      - run: python code/kalshi_scraping/discover_series.py ${{ github.event.inputs.keywords }}

@@ -348,11 +348,13 @@
   const TS_ORDER=["latest","m1","m3","m6","e2025","e2024"], TS_COLORS=["--s1","--s2","--s3","--s4"];
   const EVENT_NAME={fed_levels:"FOMC meeting",headline_cpi_releases:"CPI release",core_cpi_releases:"CPI release",
     headline_cpi_releases_mom:"CPI release",headline_cpi_end_of_year:"CPI release",gdp_end_of_year:"GDP release",
-    unemployment_releases:"jobs report",nonfarm_payrolls:"jobs report",gdp_quarterly:"GDP release"};
+    unemployment_releases:"jobs report",nonfarm_payrolls:"jobs report",gdp_quarterly:"GDP release",
+    core_pce_releases_mom:"PCE release"};
   // latest realized-underlying tile: label + how to date-stamp it
   const REALIZED_LABEL={fed_levels:"Fed Funds target, today",headline_cpi_releases:"CPI YoY, latest",core_cpi_releases:"Core CPI YoY, latest",
     headline_cpi_releases_mom:"CPI MoM, latest",headline_cpi_end_of_year:"CPI YoY, latest",gdp_end_of_year:"Real GDP, latest yr",
-    unemployment_releases:"Unemployment, latest",nonfarm_payrolls:"Payrolls Δ, latest",gdp_quarterly:"Real GDP q/q, latest"};
+    unemployment_releases:"Unemployment, latest",nonfarm_payrolls:"Payrolls Δ, latest",gdp_quarterly:"Real GDP q/q, latest",
+    core_pce_releases_mom:"Core PCE MoM, latest"};
   const REALIZED_FREQ={fed_levels:"day",gdp_end_of_year:"year",gdp_quarterly:"quarter"}; // others: month
 
   const state={tab:"fwd",series:null,source:"trade",momentFwd:"mean",cadence:"1",momentTerm:"mean",contract:null,di:0,

@@ -43,6 +43,18 @@ extract_distributions(input_file = 'data/trade_level_data/trade_level_data_headl
                       days_before_horizon = 30,
                       moment_adjustment = .1)
 
+# Core PCE MoM (KXPCECORE). Kalshi lists no headline (all-items) PCE market;
+# strike grid confirmed by audit_strikes.py (0.1pp, MATCH).
+tryCatch(
+  extract_distributions(input_file = 'data/trade_level_data/trade_level_data_core_pce_releases_mom.csv',
+                        output_distributions = 'data/daily_distribution_data/daily_distributions_core_pce_releases_mom.csv',
+                        output_moments = 'data/daily_moments_data/daily_moments_core_pce_releases_mom.csv',
+                        output_wide = 'data/daily_distribution_data/wide/daily_distributions_core_pce_releases_mom.csv',
+                        strike_int = 0.1,
+                        days_before_horizon = 30,
+                        moment_adjustment = .1),
+  error = function(e) message("core_pce_releases_mom conversion failed: ", conditionMessage(e)))
+
 # Unemployment
 extract_distributions(input_file = 'data/trade_level_data/trade_level_data_unemployment.csv',
                       output_distributions = 'data/daily_distribution_data/daily_distributions_unemployment_releases.csv',

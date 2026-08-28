@@ -36,6 +36,7 @@ run_one("core_cpi_releases",         0.1,    30,    0.1)
 run_one("headline_cpi_releases_mom", 0.1,    30,    0.1)
 run_one("unemployment_releases",     0.1,    30,    0.1)
 run_one("gdp_quarterly",             0.5,    400,   0.25)
+run_one("core_pce_releases_mom",     0.1,    30,    0.1)
 # Payrolls: strikes listed in absolute jobs, scaled to thousands (0.001) to match
 # the trade path / FRED. strike_int 10 (thousands) = Kalshi's 10k ladder; madj = strike_int/2.
 run_one("nonfarm_payrolls",          10,     45,    5,     0.001)

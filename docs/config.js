@@ -23,6 +23,8 @@ window.MK_CONFIG = {
       spec: "Resolves to the year-over-year change in core CPI-U (ex food & energy) for the labelled release month."},
     headline_cpi_releases_mom: {label: "Headline CPI (MoM)",       unit: "%",   axis: "MoM (%)",
       spec: "Resolves to the seasonally-adjusted month-over-month change in headline CPI-U for the labelled release month."},
+    core_pce_releases_mom:     {label: "Core PCE (MoM)",          unit: "%",   axis: "MoM (%)",
+      spec: "Resolves to the seasonally-adjusted month-over-month change in the core PCE price index (ex food & energy) for the labelled release month. Kalshi does not currently list a headline (all-items) PCE market."},
     headline_cpi_end_of_year:  {label: "Headline CPI, end-of-year",unit: "%",   axis: "YoY (%)",
       spec: "Resolves to the year-over-year (annual) headline CPI inflation for the labelled year."},
     gdp_end_of_year:           {label: "GDP, end-of-year",         unit: "%",   axis: "Real GDP (% ann.)",

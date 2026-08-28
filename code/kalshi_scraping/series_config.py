@@ -38,6 +38,16 @@ SERIES = [
          moments="daily_moments_headline_cpi_releases_mom.csv",
          dist="daily_distributions_headline_cpi_releases_mom.csv",
          fred=dict(id="CPIAUCSL", units="pch")),
+    # Core PCE price index, month-over-month (KXPCECORE). Kalshi's native strike
+    # ladder is 0.1pp over ~0.0-0.7% (audit_strikes.py: MATCH) -- a MoM range, not
+    # YoY; Kalshi does not currently list a headline (all-items) PCE market at all
+    # (checked via discover_series.py against the public /series endpoint).
+    # Realized = FRED core PCE price index, % change from prior period.
+    dict(key="core_pce_releases_mom", ticker="KXPCECORE",
+         trades="trade_level_data_core_pce_releases_mom.csv",
+         moments="daily_moments_core_pce_releases_mom.csv",
+         dist="daily_distributions_core_pce_releases_mom.csv",
+         fred=dict(id="PCEPILFE", units="pch")),
     dict(key="headline_cpi_end_of_year", ticker="KXACPI",
          trades="trade_level_data_headline_cpi_end_of_year.csv",
          moments="daily_moments_headline_cpi_end_of_year.csv",
@@ -91,6 +101,7 @@ QUOTE_SERIES = [
     "unemployment_releases",
     "gdp_quarterly",
     "nonfarm_payrolls",
+    "core_pce_releases_mom",
 ]
 ORDERBOOK_DIR = "data/orderbook_data"                 # raw candlestick CSVs (per series)
 BA_MOMENTS_DIR = "data/daily_bid_ask_moments_data"    # quote-derived moments

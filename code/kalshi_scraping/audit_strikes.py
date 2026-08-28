@@ -34,6 +34,7 @@ SERIES = [
     ("unemployment_releases",     "KXU3",          0.1,  1.0),
     ("nonfarm_payrolls",          "KXPAYROLLS",    50.0, 0.001),
     ("gdp_quarterly",             "KXGDP",         0.5,  1.0),
+    ("core_pce_releases",         "KXPCECORE",     0.1,  1.0),
     ("headline_cpi_end_of_year",  "KXACPI",        None, 1.0),  # bracket / PDF path
     ("gdp_end_of_year",           "KXGDPYEAR",     None, 1.0),  # bracket / PDF path
 ]
